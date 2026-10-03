@@ -14,6 +14,19 @@ import type {
 
 const MAX_ITEMS_PER_FINDING = 5;
 
+/** Findings driven by server headers that local dev servers typically omit but production servers set. */
+const DEV_SERVER_ARTIFACTS = new Set(['cache-insight', 'uses-long-cache-ttl', 'uses-text-compression']);
+
+function isLocalUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+
 // Lighthouse 13 performance-score weights, used to compare savings across metrics.
 // A saving is scored relative to the metric's "good" threshold, so 250ms of LCP and 20ms of TBT are comparable.
 const IMPACT_WEIGHTS: Record<keyof Omit<MetricSavings, 'bytes'>, { weight: number; good: number }> = {
@@ -34,13 +47,17 @@ type AnyRecord = Record<string, unknown>;
 export function extractDiagnostics(lhr: Result): Diagnostics {
   const refs = lhr.categories.performance?.auditRefs ?? [];
   const findings: Finding[] = [];
+  const local = isLocalUrl(lhr.finalDisplayedUrl);
   for (const ref of refs) {
     if (ref.group !== 'insights' && ref.group !== 'diagnostics') continue;
     const audit = lhr.audits[ref.id];
     if (!audit || audit.score === null || audit.score >= 0.9) continue;
-    findings.push(toFinding(audit));
+    const finding = toFinding(audit);
+    // Dev servers rarely set cache or compression headers; keep the finding visible but rank it last.
+    if (local && DEV_SERVER_ARTIFACTS.has(finding.id)) finding.devServerArtifact = true;
+    findings.push(finding);
   }
-  findings.sort((a, b) => b.impact - a.impact);
+  findings.sort((a, b) => Number(a.devServerArtifact ?? false) - Number(b.devServerArtifact ?? false) || b.impact - a.impact);
 
   return {
     findings,

@@ -119,7 +119,8 @@ function summarizeTimespan(lhr: Result): FlowResult['interactions'] {
     tbt: numeric('total-blocking-time'),
     inpBreakdown: breakdown.phases,
     ...(breakdown.target ? { inpTarget: breakdown.target } : {}),
-    findings: extractDiagnostics(lhr).findings,
+    // The INP breakdown is already reported above as inpBreakdown/inpTarget.
+    findings: extractDiagnostics(lhr).findings.filter((f) => f.id !== 'inp-breakdown-insight'),
   };
 }
 

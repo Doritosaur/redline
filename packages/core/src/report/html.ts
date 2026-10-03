@@ -81,7 +81,8 @@ function pageSection(page: PageReport, index: number): string {
         })
         .join('');
       const savings = formatSavings(f.savings);
-      return `<li class="finding"><div class="finding-head"><strong>${esc(f.title)}</strong>${savings ? `<span class="savings">${esc(savings)}</span>` : f.displayValue ? `<span class="savings">${esc(f.displayValue)}</span>` : ''}</div>
+      const artifact = f.devServerArtifact ? '<div class="note">Localhost only: dev servers usually skip these headers. Verify against production.</div>' : '';
+      return `<li class="finding${f.devServerArtifact ? ' muted-finding' : ''}"><div class="finding-head"><strong>${esc(f.title)}</strong>${savings ? `<span class="savings">${esc(savings)}</span>` : f.displayValue ? `<span class="savings">${esc(f.displayValue)}</span>` : ''}</div>${artifact}
 <p>${esc(plainDescription(f))}${link ? ` <a href="${esc(link)}" target="_blank" rel="noopener">Learn more</a>` : ''}</p>${items ? `<ul class="items">${items}</ul>` : ''}</li>`;
     })
     .join('');
@@ -165,7 +166,7 @@ function compatSection(report: RedlineReport): string {
   if (!c) return '';
   const rows = c.issues
     .slice(0, 100)
-    .map((i) => `<tr><td><code>${esc(`${i.file}:${i.line}`)}</code></td><td><span class="pkg">${i.kind}</span> ${esc(i.feature)}</td><td>${esc(i.message)}</td></tr>`)
+    .map((i) => `<tr><td><code class="loc">${esc(`${i.file}:${i.line}`)}</code></td><td><span class="pkg">${i.kind}</span> ${esc(i.feature)}</td><td>${esc(i.message)}</td></tr>`)
     .join('');
   return `<section><h2>Browser compatibility <span class="sub">${esc(c.targets.join(', '))} · ${c.filesScanned} files</span></h2>${
     rows ? `<div class="scroll"><table><thead><tr><th>Location</th><th>Feature</th><th>Issue</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No unsupported features found.</p>'
@@ -215,10 +216,11 @@ th{font-weight:600;color:var(--muted);font-size:.8rem}.num{text-align:right;font
 .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.4rem;background:var(--muted)}.dot.good{background:var(--good)}.dot.needs-improvement{background:var(--ni)}.dot.poor{background:var(--poor)}
 .delta.regressed{color:var(--poor)}.delta.improved{color:var(--good)}.delta.unchanged{color:var(--muted)}
 .violations{background:var(--poor-bg);color:var(--poor);border-radius:10px;padding:.6rem 1rem .6rem 2rem;margin:0 0 1rem}
-.findings{padding-left:1.4rem;margin:0}.finding{margin-bottom:1rem}.finding p{margin:.25rem 0;color:var(--muted);font-size:.88rem}
+.findings{padding-left:1.4rem;margin:0}.muted-finding{opacity:.65}.finding{margin-bottom:1rem}.finding p{margin:.25rem 0;color:var(--muted);font-size:.88rem}
 .finding-head{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}.savings{color:var(--accent);font-weight:600;font-size:.85rem;font-variant-numeric:tabular-nums}
 .items{margin:.3rem 0 0;padding-left:1.1rem;font-size:.85rem}.plain{list-style:none;padding:0;margin:0}.plain li{margin-bottom:.5rem}
 code{font:.82rem ui-monospace,"Cascadia Code",Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 .3rem;overflow-wrap:anywhere}
+code.loc{white-space:nowrap;overflow-wrap:normal}
 .pkg{font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 .3rem}
 .phases{display:grid;gap:.3rem}.phases div{display:flex;justify-content:space-between;gap:1rem;font-size:.88rem}.phases .label{color:var(--muted)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:0 1.5rem}

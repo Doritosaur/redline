@@ -16,10 +16,17 @@ describe('extractDiagnostics', () => {
   it('returns failing audits ranked by impact', () => {
     const ids = diagnostics.findings.map((f) => f.id);
     expect(ids).toEqual(expect.arrayContaining(['image-delivery-insight', 'unused-javascript', 'render-blocking-insight', 'bootup-time']));
-    const impacts = diagnostics.findings.map((f) => f.impact);
+    const impacts = diagnostics.findings.filter((f) => !f.devServerArtifact).map((f) => f.impact);
     expect(impacts).toEqual([...impacts].sort((a, b) => b - a));
     // A 5.7 MB hero image should outrank 150ms of render-blocking CSS.
     expect(ids.indexOf('image-delivery-insight')).toBeLessThan(ids.indexOf('render-blocking-insight'));
+  });
+
+  it('ranks header-driven findings last on localhost, flagged as dev-server artifacts', () => {
+    const cache = diagnostics.findings.find((f) => f.id === 'cache-insight')!;
+    expect(cache.devServerArtifact).toBe(true);
+    expect(diagnostics.findings.at(-1)?.id).toBe('cache-insight');
+    expect(diagnostics.findings[0]?.id).toBe('image-delivery-insight');
   });
 
   it('normalizes items with selectors, notes and source-mapped origins', () => {

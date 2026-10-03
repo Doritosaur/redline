@@ -18,6 +18,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@redline/agent": "workspace:*",
     "@redline/core": "workspace:*"
   }
 }

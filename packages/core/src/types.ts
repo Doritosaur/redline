@@ -74,6 +74,11 @@ export interface Finding {
   savings: MetricSavings;
   /** Relative priority; higher means fixing it should move the score more. */
   impact: number;
+  /**
+   * Set on localhost audits for header-driven findings (caching, compression) that dev servers
+   * typically omit. Check your production server instead; ranked last.
+   */
+  devServerArtifact?: boolean;
   items: FindingItem[];
 }
 
