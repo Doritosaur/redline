@@ -1,0 +1,31 @@
+# Copy to .github/workflows/performance.yml in your project.
+# PRs are compared against the baseline from the latest main-branch run.
+name: Performance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # to comment the report on PRs
+
+jobs:
+  redline:
+    runs-on: ubuntu-latest # has Google Chrome preinstalled
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: your-org/redline@v1
+        with:
+          start-command: npm run preview -- --port 3000
+          wait-on: http://localhost:3000
+          update-baseline: ${{ github.event_name == 'push' }}

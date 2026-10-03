@@ -24,6 +24,10 @@ export interface AuditOptions {
   projectRoot?: string;
   /** Called after each run completes. */
   onProgress?: (completedRuns: number, totalRuns: number) => void;
+  /** Extra Chrome command-line flags, e.g. `--no-sandbox` inside containers. */
+  chromeFlags?: string[];
+  /** Skip the pre-flight reachability check (callers that already validated the target). */
+  skipReachabilityCheck?: boolean;
 }
 
 export interface AuditResult {

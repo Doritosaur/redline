@@ -13,9 +13,9 @@ export async function audit(url: string, options: AuditOptions = {}): Promise<Au
   const preset = options.preset ?? 'mobile';
   if (!Number.isInteger(runs) || runs < 1) throw new Error(`runs must be a positive integer, got ${runs}`);
   assertHttpUrl(url);
-  await assertReachable(url);
+  if (!options.skipReachabilityCheck) await assertReachable(url);
 
-  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run'] });
+  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...(options.chromeFlags ?? [])] });
   const reports: Result[] = [];
   try {
     for (let i = 0; i < runs; i++) {

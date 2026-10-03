@@ -1,0 +1,32 @@
+{
+  "name": "@redline/server",
+  "version": "0.0.0",
+  "description": "Self-hostable Redline audit service: job queue, JSON API and HTML reports",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "redline-server": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node dist/bin.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@redline/core": "workspace:*"
+  }
+}

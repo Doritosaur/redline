@@ -1,0 +1,151 @@
+name: Redline performance check
+description: Audit your site with Redline, compare against the main-branch baseline, enforce budgets and comment on the PR.
+author: Redline
+branding:
+  icon: activity
+  color: red
+
+inputs:
+  working-directory:
+    description: Directory containing redline.config.{ts,js,json}
+    default: .
+  start-command:
+    description: Command that starts your app in the background (e.g. "npm run preview"). Omit to audit an already-running or live URL.
+    default: ''
+  wait-on:
+    description: URL to wait for before auditing (defaults to nothing; set it when using start-command)
+    default: ''
+  wait-timeout:
+    description: Seconds to wait for wait-on to respond
+    default: '120'
+  update-baseline:
+    description: Save this run as the baseline. Use "true" on pushes to your main branch.
+    default: 'false'
+  comment:
+    description: Post (and keep updating) a single PR comment with the report
+    default: 'true'
+  args:
+    description: Extra arguments for `redline ci`, e.g. "--compat"
+    default: ''
+  redline-version:
+    description: npm version of @redline/cli to run
+    default: latest
+  node-version:
+    description: Node.js version
+    default: '22'
+  github-token:
+    description: Token used to comment on the PR
+    default: ${{ github.token }}
+
+outputs:
+  exit-code:
+    description: Redline exit code (0 passed, 3 budgets failed, 1 error)
+    value: ${{ steps.redline.outputs.exit-code }}
+  report-path:
+    description: Path of the Markdown report
+    value: ${{ steps.redline.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    # PR runs read the baseline saved by the latest main-branch run; caches from the default branch are visible to PRs.
+    - name: Restore Redline baseline
+      if: inputs.update-baseline != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ inputs.working-directory }}/.redline/baseline
+        key: redline-baseline-${{ github.sha }}
+        restore-keys: redline-baseline-
+
+    - name: Start app
+      if: inputs.start-command != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        START_COMMAND: ${{ inputs.start-command }}
+      run: nohup bash -c "$START_COMMAND" > "$RUNNER_TEMP/redline-app.log" 2>&1 &
+
+    - name: Wait for app
+      if: inputs.wait-on != ''
+      shell: bash
+      env:
+        WAIT_ON: ${{ inputs.wait-on }}
+        WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
+      run: |
+        for i in $(seq 1 "$WAIT_TIMEOUT"); do
+          if curl -fsS -o /dev/null "$WAIT_ON"; then echo "App is up after ${i}s"; exit 0; fi
+          sleep 1
+        done
+        echo "::error::$WAIT_ON did not respond within ${WAIT_TIMEOUT}s"
+        cat "$RUNNER_TEMP/redline-app.log" 2>/dev/null || true
+        exit 1
+
+    - name: Run Redline
+      id: redline
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        REDLINE_VERSION: ${{ inputs.redline-version }}
+        REDLINE_ARGS: ${{ inputs.args }}
+        UPDATE_BASELINE: ${{ inputs.update-baseline }}
+      run: |
+        report="$RUNNER_TEMP/redline-report.md"
+        flags=(--md "$report" --html "$RUNNER_TEMP/redline-report.html")
+        if [ "$UPDATE_BASELINE" = "true" ]; then flags+=(--update-baseline); fi
+        set +e
+        # shellcheck disable=SC2086 # REDLINE_ARGS is intentionally word-split
+        npx --yes "@redline/cli@$REDLINE_VERSION" ci "${flags[@]}" $REDLINE_ARGS
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "report=$report" >> "$GITHUB_OUTPUT"
+        if [ -f "$report" ]; then cat "$report" >> "$GITHUB_STEP_SUMMARY"; fi
+
+    - name: Save Redline baseline
+      if: inputs.update-baseline == 'true' && steps.redline.outputs.exit-code == '0'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ inputs.working-directory }}/.redline/baseline
+        key: redline-baseline-${{ github.sha }}
+
+    - name: Upload report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: redline-report
+        path: |
+          ${{ runner.temp }}/redline-report.md
+          ${{ runner.temp }}/redline-report.html
+        if-no-files-found: ignore
+
+    - name: Comment on PR
+      if: inputs.comment == 'true' && github.event_name == 'pull_request' && steps.redline.outputs.report != ''
+      uses: actions/github-script@v7
+      env:
+        REPORT_PATH: ${{ steps.redline.outputs.report }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          if (!fs.existsSync(process.env.REPORT_PATH)) return;
+          const body = fs.readFileSync(process.env.REPORT_PATH, 'utf8').slice(0, 65000);
+          const marker = '<!-- redline-report -->';
+          const { owner, repo } = context.repo;
+          const issue_number = context.issue.number;
+          const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+          const existing = comments.find((c) => c.body?.startsWith(marker));
+          if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+          else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+    - name: Fail on budget violations
+      if: steps.redline.outputs.exit-code != '0'
+      shell: bash
+      env:
+        CODE: ${{ steps.redline.outputs.exit-code }}
+      run: |
+        if [ "$CODE" = "3" ]; then echo "::error::Performance budgets exceeded. See the Redline report."; else echo "::error::Redline failed (exit $CODE)."; fi
+        exit 1

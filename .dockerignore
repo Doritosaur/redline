@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+**/.redline
+.git
+fixtures/demo-app/src
+fixtures/demo-app/*.html
+fixtures/demo-app/*.md
