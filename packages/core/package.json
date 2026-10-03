@@ -20,7 +20,18 @@
   },
   "license": "MIT",
   "dependencies": {
+    "browserslist": "^4.29.3",
     "chrome-launcher": "^1.2.2",
-    "lighthouse": "^13.5.0"
+    "doiuse": "^6.0.6",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.11.0",
+    "eslint-plugin-compat": "^7.0.2",
+    "lighthouse": "^13.5.0",
+    "playwright": "^1.63.0",
+    "postcss": "^8.5.28",
+    "postcss-scss": "^4.0.9",
+    "puppeteer-core": "25.12.0",
+    "source-map-js": "^1.2.2",
+    "zod": "^4.6.5"
   }
 }

@@ -1,4 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM types are needed for code that runs inside the page via Playwright's page.evaluate().
+    "lib": ["ES2023", "DOM"]
+  },
   "include": ["src", "test"]
 }

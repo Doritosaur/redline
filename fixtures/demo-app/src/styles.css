@@ -1,0 +1,8 @@
+body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 48rem; padding: 1rem; }
+.hero { width: 100%; max-width: 400px; }
+.promo { background: #ffe58a; padding: 2rem; font-weight: 600; }
+h1 { text-wrap: balance; }
+/* Modern selectors/at-rules -> compatibility findings for safari 14 / firefox 90 */
+.card:has(img) { border: 1px solid #ccc; }
+.layout { container-type: inline-size; }
+@container (min-width: 30rem) { .card { display: flex; } }

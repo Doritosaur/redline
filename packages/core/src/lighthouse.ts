@@ -1,5 +1,6 @@
 import * as chromeLauncher from 'chrome-launcher';
 import lighthouse, { desktopConfig, type Result } from 'lighthouse';
+import { extractDiagnostics, mapSourcesToProject } from './diagnostics.js';
 import { METRICS, median, rate } from './metrics.js';
 import type { AuditOptions, AuditResult, Metric } from './types.js';
 
@@ -34,7 +35,9 @@ export async function audit(url: string, options: AuditOptions = {}): Promise<Au
     chrome.kill();
   }
 
-  return summarize(url, preset, reports);
+  const result = summarize(url, preset, reports);
+  if (options.projectRoot) mapSourcesToProject(result.diagnostics, options.projectRoot);
+  return result;
 }
 
 export function summarize(url: string, preset: AuditResult['preset'], reports: readonly Result[]): AuditResult {
@@ -64,8 +67,20 @@ export function summarize(url: string, preset: AuditResult['preset'], reports: r
     runs: reports.length,
     score: scores.length > 0 ? Math.round(median(scores) * 100) : null,
     metrics,
+    diagnostics: extractDiagnostics(representativeReport(reports, metrics)),
     lighthouseVersion: first.lighthouseVersion,
   };
+}
+
+/** The run whose LCP is closest to the median, so diagnostics describe a typical run rather than an outlier. */
+function representativeReport(reports: readonly Result[], metrics: readonly Metric[]): Result {
+  const lcp = metrics.find((m) => m.id === 'lcp');
+  if (!lcp || lcp.samples.length !== reports.length) return reports[0]!;
+  let best = 0;
+  lcp.samples.forEach((sample, i) => {
+    if (Math.abs(sample - lcp.value) < Math.abs(lcp.samples[best]! - lcp.value)) best = i;
+  });
+  return reports[best]!;
 }
 
 function assertHttpUrl(url: string): void {
