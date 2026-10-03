@@ -1,0 +1,26 @@
+{
+  "name": "@redline/core",
+  "version": "0.0.0",
+  "description": "Redline audit engine: collects and normalizes frontend performance metrics",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "chrome-launcher": "^1.2.2",
+    "lighthouse": "^13.5.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@redline/mcp",
+  "version": "0.0.0",
+  "description": "MCP server that lets AI coding tools run Redline performance audits",
+  "type": "module",
+  "bin": {
+    "redline-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@redline/core": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}
