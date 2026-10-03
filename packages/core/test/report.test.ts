@@ -40,6 +40,15 @@ describe('renderMarkdown', () => {
   });
 });
 
+describe('budget status', () => {
+  it('only claims budgets pass when budgets were actually checked', () => {
+    const unchecked = renderMarkdown({ generatedAt: '2026-10-03T12:00:00.000Z', pages: [{ result, violations: [] }] });
+    expect(unchecked).not.toContain('budgets pass');
+    const checked = renderMarkdown({ generatedAt: '2026-10-03T12:00:00.000Z', pages: [{ result, violations: [], budgetsChecked: true }] });
+    expect(checked).toContain('✅ All budgets pass');
+  });
+});
+
 describe('renderHtml', () => {
   it('renders a self-contained document with no external requests', () => {
     const html = renderHtml(reportWith());

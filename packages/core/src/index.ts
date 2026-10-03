@@ -5,8 +5,10 @@ export { compareResults, NOISE_THRESHOLDS, type Comparison, type MetricDelta, ty
 export { DEFAULT_HISTORY_DIR, historyKey, listRuns, loadLatestRun, readResult, saveRun } from './history.js';
 export { checkBudgets, type BudgetViolation, type Budgets } from './budgets.js';
 export {
+  budgetsSchema,
   CONFIG_FILES,
   configSchema,
+  flowStepSchema,
   defineConfig,
   loadConfig,
   type BrowserName,

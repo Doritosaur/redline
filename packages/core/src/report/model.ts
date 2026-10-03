@@ -12,6 +12,8 @@ export interface PageReport {
   template?: string;
   comparison?: Comparison;
   violations: BudgetViolation[];
+  /** True when budgets were configured and checked; otherwise "no violations" means nothing. */
+  budgetsChecked?: boolean;
   field?: FieldData;
 }
 

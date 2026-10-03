@@ -27,7 +27,7 @@ export function renderHtml(report: RedlineReport): string {
   <div class="brand"><span class="mark" aria-hidden="true"></span>Redline</div>
   <p class="meta">Generated ${esc(new Date(report.generatedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}</p>
 </header>
-${report.pages.length ? `<p class="banner ${violations ? 'bad' : 'ok'}">${violations ? `${violations} budget violation${violations === 1 ? '' : 's'}` : 'All budgets pass'}</p>` : ''}
+${violations || report.pages.some((p) => p.budgetsChecked) ? `<p class="banner ${violations ? 'bad' : 'ok'}">${violations ? `${violations} budget violation${violations === 1 ? '' : 's'}` : 'All budgets pass'}</p>` : ''}
 ${report.pages.length > 1 ? summaryTable(report.pages) : ''}
 ${report.pages.map(pageSection).join('\n')}
 ${flowsSection(report)}

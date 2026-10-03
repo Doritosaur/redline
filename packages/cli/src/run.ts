@@ -55,6 +55,7 @@ export async function auditPages(urls: string[], options: PageAuditOptions): Pro
       result,
       template: urlTemplate(url),
       violations: options.budgets ? checkBudgets(result, options.budgets) : [],
+      budgetsChecked: Boolean(options.budgets),
     };
     if (baseline) page.comparison = compareResults(baseline, result);
     if (options.cruxApiKey) {

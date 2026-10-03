@@ -29,7 +29,7 @@ export function renderMarkdown(report: RedlineReport, options: MarkdownOptions =
 
   if (report.pages.length > 0) {
     if (violations.length) out.push(`**❌ ${violations.length} budget violation${violations.length === 1 ? '' : 's'}**`, '');
-    else out.push('**✅ All budgets pass**', '');
+    else if (report.pages.some((p) => p.budgetsChecked)) out.push('**✅ All budgets pass**', '');
     if (regressions.length) out.push(`⚠️ Regressions on ${regressions.length} page${regressions.length === 1 ? '' : 's'} vs. baseline`, '');
   }
   if (report.pages.length > 1) out.push(...summaryTable(report.pages), '');
