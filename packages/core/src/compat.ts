@@ -76,7 +76,8 @@ async function checkJs(files: string[], root: string, queries: string[], polyfil
     import('esbuild'),
     import('source-map-js'),
   ]);
-  const linter = new Linter({ configType: 'flat' });
+  // Flat config matches `files` globs relative to cwd; anchor it at the scanned root so projects outside the cwd are linted too.
+  const linter = new Linter({ configType: 'flat', cwd: root });
   const config = [
     {
       // Flat config only lints .js by default; TS files are linted as their transformed .jsx output.

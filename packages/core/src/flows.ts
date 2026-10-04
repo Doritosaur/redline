@@ -33,13 +33,15 @@ export interface FlowResult {
 export interface FlowOptions {
   baseUrl?: string;
   preset?: Preset;
+  /** Extra Chrome command-line flags, e.g. `--no-sandbox` inside containers. */
+  chromeFlags?: string[];
 }
 
 /** Run a scripted user journey and measure responsiveness (INP) and layout stability while it happens. */
 export async function runFlow(flow: FlowConfig, options: FlowOptions = {}): Promise<FlowResult> {
   const preset = options.preset ?? 'mobile';
   const url = toAbsolute(flow.url, options.baseUrl);
-  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run'] });
+  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...(options.chromeFlags ?? [])] });
   const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${chrome.port}`, defaultViewport: null });
   try {
     const page = await browser.newPage();
