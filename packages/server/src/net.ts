@@ -41,7 +41,7 @@ function isPrivateV4(address: string): boolean {
 export interface VettedTarget {
   url: string;
   hostname: string;
-  /** Resolved public address Chrome is pinned to, so DNS can't be re-pointed between check and load. */
+  /** Resolved public address of the initial host. */
   address: string;
 }
 
@@ -56,7 +56,12 @@ export async function vetTarget(raw: string, options: { allowPrivate?: boolean }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new TargetError('Only http and https URLs can be audited.');
   if (url.username || url.password) throw new TargetError('URLs with credentials are not allowed.');
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  const address = await resolvePublic(hostname, options);
+  return { url: url.href, hostname, address };
+}
 
+/** Resolve a hostname and refuse it if any address is internal. Returns the address to connect to. */
+export async function resolvePublic(hostname: string, options: { allowPrivate?: boolean } = {}): Promise<string> {
   let addresses: string[];
   if (net.isIP(hostname)) addresses = [hostname];
   else {
@@ -69,13 +74,7 @@ export async function vetTarget(raw: string, options: { allowPrivate?: boolean }
   if (!options.allowPrivate && addresses.some(isPrivateAddress)) {
     throw new TargetError(`${hostname} resolves to a private or internal address, which this service does not audit.`);
   }
-  return { url: url.href, hostname, address: addresses[0]! };
-}
-
-/** Chrome flag that resolves `hostname` only to the vetted address. */
-export function pinHostFlag(target: VettedTarget): string {
-  const ip = net.isIPv6(target.address) ? `[${target.address}]` : target.address;
-  return `--host-resolver-rules=MAP ${target.hostname} ${ip}`;
+  return addresses[0]!;
 }
 
 export class TargetError extends Error {}

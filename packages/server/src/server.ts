@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { audit, renderHtml, urlTemplate, type AuditResult, type Preset } from '@redline/core';
-import { pinHostFlag, TargetError, vetTarget } from './net.js';
+import { TargetError, vetTarget } from './net.js';
 import { landingPage, pendingPage } from './pages.js';
+import { startVettingProxy, type VettingProxy } from './proxy.js';
 
 export interface ServerOptions {
   /** Allow auditing localhost/private networks. Only for self-hosting inside a trusted network. */
@@ -17,6 +18,10 @@ export interface ServerOptions {
   maxQueue?: number;
   /** Max runs per audit. Default 3. */
   maxRuns?: number;
+  /** Abort an audit that runs longer than this. Default 120000 ms per run. */
+  auditTimeoutMs?: number;
+  /** Take the client IP from X-Forwarded-For (use only behind a proxy you control). Default false. */
+  trustProxy?: boolean;
   /** Override the audit function (tests). */
   auditFn?: typeof audit;
 }
@@ -48,7 +53,9 @@ export function createServer(options: ServerOptions = {}): http.Server {
   const maxQueue = options.maxQueue ?? 10;
   const maxRuns = options.maxRuns ?? 3;
   const limit = options.rateLimitPerHour ?? 20;
+  const timeoutMs = options.auditTimeoutMs ?? 120_000;
   let running = false;
+  let proxy: Promise<VettingProxy> | undefined;
 
   const pump = async () => {
     if (running) return;
@@ -59,12 +66,16 @@ export function createServer(options: ServerOptions = {}): http.Server {
     try {
       // Re-vet at run time: DNS may have changed since the job was queued.
       const target = await vetTarget(job.url, { allowPrivate: options.allowPrivate });
+      // Every request Chrome makes goes through a proxy that vets the destination, so redirects
+      // and subresources can't reach internal addresses either.
+      const vetting = options.allowPrivate ? undefined : await (proxy ??= startVettingProxy());
       job.result = await runAudit(target.url, {
         runs: job.runs,
         preset: job.preset,
-        chromeFlags: [...(options.chromeFlags ?? []), ...(options.allowPrivate ? [] : [pinHostFlag(target)])],
-        // Node's fetch would follow redirects to unvetted hosts; Chrome is pinned instead.
+        chromeFlags: [...(options.chromeFlags ?? []), ...(vetting ? [vetting.flag] : [])],
+        // Node's fetch would follow redirects to unvetted hosts; the proxy vets Chrome's requests instead.
         skipReachabilityCheck: !options.allowPrivate,
+        signal: AbortSignal.timeout(timeoutMs * job.runs),
       });
       job.status = 'done';
     } catch (err) {
@@ -106,7 +117,8 @@ export function createServer(options: ServerOptions = {}): http.Server {
         if (options.apiToken && !safeEqual(req.headers.authorization ?? '', `Bearer ${options.apiToken}`)) {
           return send(401, { error: 'Missing or invalid API token.' });
         }
-        const ip = req.socket.remoteAddress ?? 'unknown';
+        const forwarded = options.trustProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',').pop()?.trim() : undefined;
+        const ip = forwarded || (req.socket.remoteAddress ?? 'unknown');
         const recent = (hits.get(ip) ?? []).filter((t) => t > Date.now() - JOB_TTL_MS);
         if (recent.length >= limit) return send(429, { error: `Rate limit: ${limit} audits per hour.` });
         if (queue.length >= maxQueue) return send(503, { error: 'Too many audits queued. Try again in a minute.' });
@@ -156,7 +168,10 @@ export function createServer(options: ServerOptions = {}): http.Server {
       return send(500, { error: 'Internal error' });
     }
   });
-  server.on('close', () => clearInterval(sweep));
+  server.on('close', () => {
+    clearInterval(sweep);
+    void proxy?.then((p) => p.close());
+  });
   return server;
 }
 

@@ -6,6 +6,7 @@ const allowPrivate = process.env.REDLINE_ALLOW_PRIVATE === '1';
 
 const server = createServer({
   allowPrivate,
+  trustProxy: process.env.REDLINE_TRUST_PROXY === '1',
   ...(process.env.REDLINE_API_TOKEN ? { apiToken: process.env.REDLINE_API_TOKEN } : {}),
   chromeFlags: (process.env.REDLINE_CHROME_FLAGS ?? '').split(' ').filter(Boolean),
   ...(process.env.REDLINE_RATE_LIMIT ? { rateLimitPerHour: Number(process.env.REDLINE_RATE_LIMIT) } : {}),

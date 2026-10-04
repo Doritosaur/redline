@@ -1,8 +1,10 @@
 import type { AddressInfo } from 'node:net';
-import type http from 'node:http';
+import http from 'node:http';
+import net from 'node:net';
 import type { AuditOptions, AuditResult } from '@redline/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isPrivateAddress, pinHostFlag, vetTarget } from '../src/net.js';
+import { isPrivateAddress, vetTarget } from '../src/net.js';
+import { startVettingProxy } from '../src/proxy.js';
 import { createServer, type ServerOptions } from '../src/server.js';
 
 describe('isPrivateAddress', () => {
@@ -26,10 +28,9 @@ describe('vetTarget', () => {
     await expect(vetTarget('example.com')).rejects.toThrow(/full URL/);
   });
 
-  it('allows private targets when self-hosting opts in, and pins Chrome to the vetted IP', async () => {
+  it('allows private targets when self-hosting opts in, ', async () => {
     const t = await vetTarget('http://127.0.0.1:4321/x', { allowPrivate: true });
     expect(t).toMatchObject({ hostname: '127.0.0.1', address: '127.0.0.1' });
-    expect(pinHostFlag({ url: 'https://a.test/', hostname: 'a.test', address: '2606:4700::1111' })).toBe('--host-resolver-rules=MAP a.test [2606:4700::1111]');
   });
 });
 
@@ -51,7 +52,7 @@ describe('server', () => {
     return { base, post };
   }
 
-  it('queues an audit, runs it with pinned DNS, and serves JSON and HTML results', async () => {
+  it('queues an audit, runs it through the vetting proxy, and serves JSON and HTML results', async () => {
     const auditFn = vi.fn(async (url: string, _opts?: AuditOptions) => fakeResult(url));
     // Public-mode vetting needs a resolvable public host; 93.184.215.14 is a literal public IP.
     const { base, post } = await start({ auditFn: auditFn as never });
@@ -62,7 +63,8 @@ describe('server', () => {
     await vi.waitFor(async () => expect(((await (await fetch(`${base}/api/audits/${id}`)).json()) as { status: string }).status).toBe('done'));
     const [, opts] = auditFn.mock.calls[0]!;
     expect(opts).toMatchObject({ runs: 3, preset: 'desktop', skipReachabilityCheck: true });
-    expect(opts?.chromeFlags).toContain('--host-resolver-rules=MAP 93.184.215.14 93.184.215.14');
+    expect(opts?.chromeFlags).toEqual([expect.stringMatching(/^--proxy-server=http:\/\/127\.0\.0\.1:\d+$/)]);
+    expect(opts?.signal).toBeInstanceOf(AbortSignal);
 
     const html = await (await fetch(`${base}${reportUrl}`)).text();
     expect(html).toContain('<!doctype html>');
@@ -91,5 +93,78 @@ describe('server', () => {
     expect(bad.status).toBe(400);
     const { id } = (await (await post({ url: 'http://127.0.0.1:1/' })).json()) as { id: string };
     await vi.waitFor(async () => expect(await (await fetch(`${base}/api/audits/${id}`)).json()).toMatchObject({ status: 'failed', error: 'Chrome crashed' }));
+  });
+
+  it('aborts audits that exceed the timeout', async () => {
+    const auditFn = vi.fn(
+      (_url: string, opts?: AuditOptions) => new Promise<AuditResult>((_, reject) => opts?.signal?.addEventListener('abort', () => reject(opts.signal!.reason))),
+    );
+    const { base, post } = await start({ allowPrivate: true, auditTimeoutMs: 50, auditFn: auditFn as never });
+    const { id } = (await (await post({ url: 'http://127.0.0.1:1/' })).json()) as { id: string };
+    await vi.waitFor(async () => expect(await (await fetch(`${base}/api/audits/${id}`)).json()).toMatchObject({ status: 'failed' }));
+  });
+
+  it('rate limits by X-Forwarded-For only when trustProxy is set', async () => {
+    const auditFn = (async (u: string) => fakeResult(u)) as never;
+    const off = await start({ allowPrivate: true, rateLimitPerHour: 1, auditFn });
+    expect((await off.post({ url: 'http://127.0.0.1:1/' }, { 'x-forwarded-for': '1.1.1.1' })).status).toBe(202);
+    expect((await off.post({ url: 'http://127.0.0.1:1/' }, { 'x-forwarded-for': '2.2.2.2' })).status).toBe(429);
+    server?.close();
+    const on = await start({ allowPrivate: true, rateLimitPerHour: 1, trustProxy: true, auditFn });
+    expect((await on.post({ url: 'http://127.0.0.1:1/' }, { 'x-forwarded-for': '1.1.1.1' })).status).toBe(202);
+    expect((await on.post({ url: 'http://127.0.0.1:1/' }, { 'x-forwarded-for': '2.2.2.2' })).status).toBe(202);
+    expect((await on.post({ url: 'http://127.0.0.1:1/' }, { 'x-forwarded-for': '2.2.2.2' })).status).toBe(429);
+  });
+});
+
+describe('vetting proxy', () => {
+  const closers: Array<() => unknown> = [];
+  afterEach(async () => {
+    for (const close of closers.splice(0)) await close();
+  });
+
+  const listen = (s: http.Server) => new Promise<number>((r) => s.listen(0, '127.0.0.1', () => r((s.address() as AddressInfo).port)));
+  const proxyPort = (flag: string) => Number(/:(\d+)$/.exec(flag)![1]);
+
+  it('refuses plain requests and CONNECT tunnels to internal addresses, including redirect targets', async () => {
+    const upstream = http.createServer((_, res) => res.end('secret'));
+    const upstreamPort = await listen(upstream);
+    closers.push(() => upstream.close());
+    const proxy = await startVettingProxy();
+    closers.push(proxy.close);
+    const port = proxyPort(proxy.flag);
+
+    const plain = await new Promise<number>((resolve) =>
+      http.get({ host: '127.0.0.1', port, path: `http://127.0.0.1:${upstreamPort}/`, headers: { host: `127.0.0.1:${upstreamPort}` } }, (res) => resolve(res.statusCode!)),
+    );
+    expect(plain).toBe(403);
+
+    const metadata = await new Promise<number>((resolve) =>
+      http.get({ host: '127.0.0.1', port, path: 'http://169.254.169.254/latest/meta-data' }, (res) => resolve(res.statusCode!)),
+    );
+    expect(metadata).toBe(403);
+
+    const connect = await new Promise<string>((resolve) => {
+      const socket = net.connect(port, '127.0.0.1', () => socket.write(`CONNECT 127.0.0.1:${upstreamPort} HTTP/1.1\r\nHost: x\r\n\r\n`));
+      socket.once('data', (d) => (socket.destroy(), resolve(d.toString())));
+    });
+    expect(connect).toMatch(/^HTTP\/1\.1 403/);
+  });
+
+  it('forwards to vetted destinations when private targets are allowed', async () => {
+    const upstream = http.createServer((req, res) => res.end(`hello ${req.url}`));
+    const upstreamPort = await listen(upstream);
+    closers.push(() => upstream.close());
+    const proxy = await startVettingProxy({ allowPrivate: true });
+    closers.push(proxy.close);
+
+    const body = await new Promise<string>((resolve) =>
+      http.get({ host: '127.0.0.1', port: proxyPort(proxy.flag), path: `http://127.0.0.1:${upstreamPort}/a?b=1` }, (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => resolve(data));
+      }),
+    );
+    expect(body).toBe('hello /a?b=1');
   });
 });

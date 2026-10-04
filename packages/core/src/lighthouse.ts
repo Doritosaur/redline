@@ -13,12 +13,16 @@ export async function audit(url: string, options: AuditOptions = {}): Promise<Au
   const preset = options.preset ?? 'mobile';
   if (!Number.isInteger(runs) || runs < 1) throw new Error(`runs must be a positive integer, got ${runs}`);
   assertHttpUrl(url);
+  options.signal?.throwIfAborted();
   if (!options.skipReachabilityCheck) await assertReachable(url);
 
   const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...(options.chromeFlags ?? [])] });
   const reports: Result[] = [];
+  const abort = () => chrome.kill();
+  options.signal?.addEventListener('abort', abort, { once: true });
   try {
     for (let i = 0; i < runs; i++) {
+      options.signal?.throwIfAborted();
       const result = await lighthouse(
         url,
         { port: chrome.port, logLevel: 'error', onlyCategories: ['performance'] },
@@ -31,7 +35,12 @@ export async function audit(url: string, options: AuditOptions = {}): Promise<Au
       reports.push(result.lhr);
       options.onProgress?.(i + 1, runs);
     }
+  } catch (err) {
+    // Killing Chrome makes Lighthouse fail with an unrelated protocol error; report the abort instead.
+    if (options.signal?.aborted) throw options.signal.reason;
+    throw err;
   } finally {
+    options.signal?.removeEventListener('abort', abort);
     chrome.kill();
   }
 

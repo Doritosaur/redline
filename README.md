@@ -89,10 +89,11 @@ docker build -t redline . && docker run --rm -p 8080:8080 --shm-size=1g redline
 |---|---|
 | `REDLINE_API_TOKEN` | Require `Authorization: Bearer <token>` to start audits |
 | `REDLINE_RATE_LIMIT` | Audits per client IP per hour (default 20) |
+| `REDLINE_TRUST_PROXY=1` | Rate limit by the last `X-Forwarded-For` entry. Only behind a reverse proxy you control |
 | `REDLINE_ALLOW_PRIVATE=1` | Allow localhost/private URLs. **Only on a trusted network.** |
 | `REDLINE_CHROME_FLAGS` | Extra Chrome flags (the image sets `--no-sandbox --disable-dev-shm-usage`) |
 
-By default the server refuses URLs that resolve to private, loopback, link-local (cloud metadata) or reserved addresses. It also pins Chrome's DNS for the target host to the vetted IP, so DNS rebinding can't redirect it. Subresources a page loads aren't vetted, so a public deployment should also run on a network with no route to internal services or metadata endpoints.
+By default the server refuses URLs that resolve to private, loopback, link-local (cloud metadata) or reserved addresses. Chrome is routed through a built-in proxy that resolves and vets every destination, including redirects and subresources, and connects only to the vetted IP, so redirects and DNS rebinding can't reach internal services. Each audit is aborted after 2 minutes per run. As defence in depth, a public deployment should still run on a network with no route to internal services or metadata endpoints.
 
 ## Known limitations
 

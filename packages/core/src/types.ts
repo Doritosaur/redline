@@ -28,6 +28,8 @@ export interface AuditOptions {
   chromeFlags?: string[];
   /** Skip the pre-flight reachability check (callers that already validated the target). */
   skipReachabilityCheck?: boolean;
+  /** Abort the audit: Chrome is killed and the audit rejects with the signal's reason. */
+  signal?: AbortSignal;
 }
 
 export interface AuditResult {
