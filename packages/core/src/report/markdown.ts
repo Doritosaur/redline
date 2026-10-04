@@ -5,6 +5,7 @@ import {
   formatMetric,
   formatMs,
   formatSavings,
+  lcpPhaseNote,
   learnMoreUrl,
   shortUrl,
   type PageReport,
@@ -113,6 +114,8 @@ function detailsBlock(page: PageReport): string[] {
   if (d.lcpElement) {
     body.push(`**LCP element:** \`${d.lcpElement.selector}\``, '');
     if (d.lcpElement.phases.length) body.push(d.lcpElement.phases.map((p) => `${p.phase}: ${formatMs(p.ms)}`).join(' · '), '');
+    const note = lcpPhaseNote(d.lcpElement, page.result.metrics.find((m) => m.id === 'lcp')?.value);
+    if (note) body.push(`_${note}_`, '');
   }
   if (d.layoutShifts.length) {
     body.push('**Layout shifts**', '');

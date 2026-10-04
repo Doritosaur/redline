@@ -5,6 +5,7 @@ import {
   formatMetric,
   formatMs,
   formatSavings,
+  lcpPhaseNote,
   shortUrl,
   type BrowserRun,
   type CompatReport,
@@ -76,7 +77,11 @@ export function renderPage(page: PageReport, options: { findings?: number } = {}
     });
   }
   const lcp = result.diagnostics.lcpElement;
-  if (lcp) lines.push('', `${bold('LCP element')} ${lcp.selector}`, dim(`  ${lcp.phases.map((p) => `${p.phase} ${formatMs(p.ms)}`).join(' · ')}`));
+  if (lcp) {
+    lines.push('', `${bold('LCP element')} ${lcp.selector}`, dim(`  ${lcp.phases.map((p) => `${p.phase} ${formatMs(p.ms)}`).join(' · ')}`));
+    const note = lcpPhaseNote(lcp, result.metrics.find((m) => m.id === 'lcp')?.value);
+    if (note) lines.push(dim(`  ${note}`));
+  }
   return lines.join('\n');
 }
 

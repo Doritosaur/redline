@@ -7,6 +7,7 @@ export {
   formatMs,
   formatSavings,
   hasFailures,
+  lcpPhaseNote,
   learnMoreUrl,
   plainDescription,
   shortUrl,

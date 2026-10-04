@@ -34,6 +34,18 @@ export function formatMs(ms: number): string {
   return ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${Math.round(ms)} ms`;
 }
 
+/**
+ * The LCP element and its phases come from the unthrottled trace, while the headline LCP is Lighthouse's throttled
+ * simulation. When they differ a lot (a big image that only hurts on a slow network), say so rather than let the
+ * two numbers look contradictory.
+ */
+export function lcpPhaseNote(lcp: { phases: Array<{ ms: number }> } | undefined, lcpMetricMs: number | undefined): string | undefined {
+  if (!lcp || !lcpMetricMs) return undefined;
+  const observed = lcp.phases.reduce((sum, p) => sum + p.ms, 0);
+  if (observed <= 0 || lcpMetricMs < observed * 2) return undefined;
+  return `Measured without throttling (${formatMs(observed)}); the ${formatMs(lcpMetricMs)} LCP above is the throttled estimate, so a resource that is slow only on a slow network can differ from this element.`;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;

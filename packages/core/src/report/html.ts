@@ -5,6 +5,7 @@ import {
   formatMetric,
   formatMs,
   formatSavings,
+  lcpPhaseNote,
   learnMoreUrl,
   plainDescription,
   shortUrl,
@@ -107,7 +108,10 @@ function pageSection(page: PageReport, index: number): string {
   const lcp = d.lcpElement
     ? `<h3>LCP element</h3><p><code>${esc(d.lcpElement.selector)}</code></p>${
         d.lcpElement.phases.length ? `<div class="phases">${d.lcpElement.phases.map((p) => `<div><span class="label">${esc(p.phase)}</span><span class="num">${esc(formatMs(p.ms))}</span></div>`).join('')}</div>` : ''
-      }`
+      }${(() => {
+        const note = lcpPhaseNote(d.lcpElement, result.metrics.find((m) => m.id === 'lcp')?.value);
+        return note ? `<p class="muted">${esc(note)}</p>` : '';
+      })()}`
     : '';
   const shifts = d.layoutShifts.length
     ? `<h3>Layout shifts</h3><ul class="plain">${d.layoutShifts.slice(0, 5).map((s) => `<li><code>${esc(s.selector)}</code> <span class="num">${s.score.toFixed(3)}</span>${s.causes.length ? `<div class="note">${esc(s.causes.join('; '))}</div>` : ''}</li>`).join('')}</ul>`
