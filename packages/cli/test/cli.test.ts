@@ -20,7 +20,8 @@ const result = (lcp: number): AuditResult => ({
   diagnostics: { findings: [], layoutShifts: [], longTasks: [], sources: [] },
 });
 
-describe('redline CLI', () => {
+// Each case spawns a Node process; allow for slow or loaded machines.
+describe('redline CLI', { timeout: 30_000 }, () => {
   let cwd: string;
   beforeAll(() => {
     if (!fs.existsSync(bin)) throw new Error('packages/cli/dist is missing. Run `pnpm build` before the tests.');
@@ -28,7 +29,7 @@ describe('redline CLI', () => {
   beforeEach(() => {
     cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'redline-cli-'));
   });
-  afterEach(() => fs.rmSync(cwd, { recursive: true, force: true }));
+  afterEach(() => fs.rmSync(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
   const run = (args: string[], env: Record<string, string | undefined> = {}) =>
     new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
@@ -49,11 +50,12 @@ describe('redline CLI', () => {
   });
 
   it('exits 2 with a hint on bad usage', async () => {
-    for (const args of [['--nope'], ['--preset', 'tablet', 'localhost:3000'], ['--runs', '0', 'localhost:3000'], ['compare', 'only-one.json'], ['ci'], ['flow']]) {
-      const res = await run(args);
-      expect(res.code, args.join(' ')).toBe(2);
+    const cases = [['--nope'], ['--preset', 'tablet', 'localhost:3000'], ['--runs', '0', 'localhost:3000'], ['compare', 'only-one.json'], ['ci'], ['flow']];
+    const results = await Promise.all(cases.map((args) => run(args)));
+    results.forEach((res, i) => {
+      expect(res.code, cases[i]!.join(' ')).toBe(2);
       expect(res.stderr).toContain('redline --help');
-    }
+    });
   });
 
   it('refuses --field and field without CRUX_API_KEY', async () => {
