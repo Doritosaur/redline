@@ -1,5 +1,6 @@
 import * as chromeLauncher from 'chrome-launcher';
 import lighthouse, { desktopConfig, type Result } from 'lighthouse';
+import { chromeFlagsFromEnv } from './chrome.js';
 import { extractDiagnostics, mapSourcesToProject } from './diagnostics.js';
 import { METRICS, median, rate } from './metrics.js';
 import type { AuditOptions, AuditResult, Metric } from './types.js';
@@ -16,7 +17,7 @@ export async function audit(url: string, options: AuditOptions = {}): Promise<Au
   options.signal?.throwIfAborted();
   if (!options.skipReachabilityCheck) await assertReachable(url);
 
-  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...(options.chromeFlags ?? [])] });
+  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...chromeFlagsFromEnv(), ...(options.chromeFlags ?? [])] });
   const reports: Result[] = [];
   const abort = () => chrome.kill();
   options.signal?.addEventListener('abort', abort, { once: true });

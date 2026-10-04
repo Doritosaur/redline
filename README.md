@@ -15,7 +15,7 @@ npx @redline/cli localhost:3000            # audit a dev server
 npx @redline/cli https://example.com --runs 3 --html report.html
 ```
 
-Requires Node 22+ and Chrome (or Chromium) installed locally.
+Requires Node 22+ and Chrome (or Chromium) installed locally. In containers or locked-down CI where Chrome's sandbox can't start, set `REDLINE_CHROME_FLAGS="--no-sandbox"` (space-separated Chrome flags; applies to audits, flows and the server).
 
 ## Commands
 
@@ -25,7 +25,7 @@ Requires Node 22+ and Chrome (or Chromium) installed locally.
 | `redline compare <a.json> <b.json>` | Compare two saved results |
 | `redline browsers <url>` | Load in Chromium, Firefox and WebKit; report timings, JS errors and failed requests per engine |
 | `redline compat [dir]` | Find JS APIs and CSS features your browserslist targets don't support, with `file:line` |
-| `redline flow [name...]` | Run scripted user flows from config and measure INP, its breakdown, and the slow element |
+| `redline flow [name...]` | Run scripted user flows from config and measure INP and where its time goes (input delay, processing, presentation) |
 | `redline field <url>` | Real-user p75 Core Web Vitals from the Chrome UX Report (needs `CRUX_API_KEY`) |
 | `redline explain [url...]` | Audit, then ask Claude for prioritized code-level fixes (needs Anthropic credentials) |
 | `redline ci` | Audit configured pages against saved baselines; `--update-baseline` to save new ones |

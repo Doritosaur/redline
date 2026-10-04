@@ -39,3 +39,4 @@ export type {
   Rating,
   SourceAttribution,
 } from './types.js';
+export { chromeFlagsFromEnv } from './chrome.js';

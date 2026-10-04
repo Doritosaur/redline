@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { chromeFlagsFromEnv } from '../src/chrome.js';
 import { loadConfig } from '../src/config.js';
 import { groupByTemplate, parseSitemapLocs, resolvePages, urlTemplate } from '../src/pages.js';
 
@@ -89,5 +90,12 @@ describe('sitemaps', () => {
 
   it('rejects relative pages without a baseUrl', async () => {
     await expect(resolvePages({ pages: ['/x'] })).rejects.toThrow(/baseUrl/);
+  });
+});
+
+describe('chromeFlagsFromEnv', () => {
+  it('splits REDLINE_CHROME_FLAGS on whitespace and ignores blanks', () => {
+    expect(chromeFlagsFromEnv({ REDLINE_CHROME_FLAGS: ' --no-sandbox   --disable-dev-shm-usage ' })).toEqual(['--no-sandbox', '--disable-dev-shm-usage']);
+    expect(chromeFlagsFromEnv({})).toEqual([]);
   });
 });

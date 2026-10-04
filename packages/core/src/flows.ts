@@ -2,6 +2,7 @@ import * as chromeLauncher from 'chrome-launcher';
 import { desktopConfig, startFlow, type Result } from 'lighthouse';
 import puppeteer, { type Page } from 'puppeteer-core';
 import type { FlowConfig, FlowStep } from './config.js';
+import { chromeFlagsFromEnv } from './chrome.js';
 import { extractDiagnostics } from './diagnostics.js';
 import { summarize } from './lighthouse.js';
 import { toAbsolute } from './pages.js';
@@ -41,7 +42,7 @@ export interface FlowOptions {
 export async function runFlow(flow: FlowConfig, options: FlowOptions = {}): Promise<FlowResult> {
   const preset = options.preset ?? 'mobile';
   const url = toAbsolute(flow.url, options.baseUrl);
-  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...(options.chromeFlags ?? [])] });
+  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...chromeFlagsFromEnv(), ...(options.chromeFlags ?? [])] });
   const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${chrome.port}`, defaultViewport: null });
   try {
     const page = await browser.newPage();
