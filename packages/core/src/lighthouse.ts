@@ -1,6 +1,7 @@
 import * as chromeLauncher from 'chrome-launcher';
 import lighthouse, { desktopConfig, type Result } from 'lighthouse';
 import { chromeFlagsFromEnv, lighthouseLogLevel } from './chrome.js';
+import { withoutSourceMapNoise } from './quiet.js';
 import { extractDiagnostics, mapSourcesToProject } from './diagnostics.js';
 import { METRICS, median, rate } from './metrics.js';
 import type { AuditOptions, AuditResult, Metric } from './types.js';
@@ -48,10 +49,8 @@ async function collectReports(url: string, runs: number, preset: AuditResult['pr
 
 /** One Lighthouse performance run against an already-launched Chrome. */
 async function runLighthouse(url: string, port: number, preset: AuditResult['preset']): Promise<Result> {
-  const result = await lighthouse(
-    url,
-    { port, logLevel: lighthouseLogLevel(), onlyCategories: ['performance'] },
-    preset === 'desktop' ? desktopConfig : undefined,
+  const result = await withoutSourceMapNoise(() =>
+    lighthouse(url, { port, logLevel: lighthouseLogLevel(), onlyCategories: ['performance'] }, preset === 'desktop' ? desktopConfig : undefined),
   );
   if (!result) throw new Error(`Lighthouse returned no result for ${url}`);
   if (result.lhr.runtimeError) {

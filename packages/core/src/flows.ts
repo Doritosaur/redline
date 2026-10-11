@@ -3,6 +3,7 @@ import { desktopConfig, startFlow, type Result } from 'lighthouse';
 import puppeteer, { type Page } from 'puppeteer-core';
 import type { FlowConfig, FlowStep } from './config.js';
 import { chromeFlagsFromEnv, lighthouseLogLevel } from './chrome.js';
+import { withoutSourceMapNoise } from './quiet.js';
 import { extractDiagnostics } from './diagnostics.js';
 import { summarize } from './lighthouse.js';
 import { toAbsolute } from './pages.js';
@@ -52,7 +53,7 @@ export async function runFlow(flow: FlowConfig, options: FlowOptions = {}): Prom
       ...(preset === 'desktop' ? { config: desktopConfig } : {}),
     });
 
-    await lhFlow.navigate(url, { name: `Load ${flow.url}` });
+    await withoutSourceMapNoise(() => lhFlow.navigate(url, { name: `Load ${flow.url}` }));
     await lhFlow.startTimespan({ name: 'Interactions' });
     const steps: string[] = [];
     for (const step of flow.steps) steps.push(await runStep(page, step, options.baseUrl ?? url));
@@ -60,7 +61,7 @@ export async function runFlow(flow: FlowConfig, options: FlowOptions = {}): Prom
     await new Promise((r) => setTimeout(r, 500));
     await lhFlow.endTimespan();
 
-    const result = await lhFlow.createFlowResult();
+    const result = await withoutSourceMapNoise(() => lhFlow.createFlowResult());
     const [navStep, timespanStep] = result.steps;
     if (!navStep || !timespanStep) throw new Error(`Flow "${flow.name}" produced no results`);
     if (navStep.lhr.runtimeError) throw new Error(`Could not load ${url}: ${navStep.lhr.runtimeError.message}`);

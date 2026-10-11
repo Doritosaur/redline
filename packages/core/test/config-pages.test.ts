@@ -101,8 +101,8 @@ describe('chromeFlagsFromEnv', () => {
 });
 
 describe('lighthouseLogLevel', () => {
-  it('is silent by default so third-party source-map warnings do not leak, and verbose with REDLINE_DEBUG', () => {
-    expect(lighthouseLogLevel({})).toBe('silent');
+  it('logs errors only by default and everything with REDLINE_DEBUG', () => {
+    expect(lighthouseLogLevel({})).toBe('error');
     expect(lighthouseLogLevel({ REDLINE_DEBUG: '1' })).toBe('info');
   });
 });
