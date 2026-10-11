@@ -10,7 +10,7 @@ pnpm monorepo (TypeScript, vitest). Packages: `core`, `cli`, `mcp`, `agent`, `se
 
 ## Checks
 
-- `pnpm lint` (ESLint, strict type-checked, size limits: 400 lines/file, 75 lines/function, complexity 15, depth 4, 4 params). Do not add `eslint-disable` or raise limits to get around a violation; refactor instead.
+- `pnpm lint` (needs `pnpm build` first on a fresh checkout, since type-aware lint reads each package's built `dist`; ESLint, strict type-checked, size limits: 400 lines/file, 75 lines/function, complexity 15, depth 4, 4 params). Do not add `eslint-disable` or raise limits to get around a violation; refactor instead.
 - `pnpm typecheck` (builds, then typechecks all packages).
 - `pnpm test` (set `REDLINE_E2E=1` for the browser e2e tests).
 - Lefthook runs lint on staged files at pre-commit and lint, typecheck and test at pre-push.

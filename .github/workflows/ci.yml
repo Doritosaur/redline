@@ -24,8 +24,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Type-aware lint resolves @redline/* through their built .d.ts files, so build first.
+      - run: pnpm build
       - run: pnpm lint
-      - run: pnpm typecheck
+      - run: pnpm -r typecheck
       - run: pnpm test
         env:
           REDLINE_E2E: '1'

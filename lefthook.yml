@@ -5,11 +5,11 @@ pre-commit:
       run: pnpm exec eslint --max-warnings 0 {staged_files}
 
 pre-push:
-  parallel: true
+  # Sequential: typecheck builds the packages that type-aware lint needs.
   commands:
-    lint:
-      run: pnpm lint
     typecheck:
       run: pnpm typecheck
+    lint:
+      run: pnpm lint
     test:
       run: pnpm test
