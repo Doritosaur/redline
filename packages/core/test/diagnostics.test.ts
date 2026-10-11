@@ -61,6 +61,36 @@ describe('extractDiagnostics', () => {
   });
 });
 
+describe('extractDiagnostics edge cases', () => {
+  it('keeps failing audits that carry no score instead of dropping them', () => {
+    const copy = structuredClone(lhr);
+    delete (copy.audits['bootup-time'] as { score?: number | null }).score;
+    expect(extractDiagnostics(copy).findings.map((f) => f.id)).toContain('bootup-time');
+  });
+
+  it('skips audits Lighthouse could not score (null) and audits missing from the report', () => {
+    const copy = structuredClone(lhr);
+    copy.audits['bootup-time']!.score = null;
+    delete (copy.audits as Record<string, unknown>)['unused-javascript'];
+    const ids = extractDiagnostics(copy).findings.map((f) => f.id);
+    expect(ids).not.toContain('bootup-time');
+    expect(ids).not.toContain('unused-javascript');
+  });
+
+  it('stringifies primitive layout-shift causes and falls back for unusable ones', () => {
+    const copy = structuredClone(lhr);
+    const tables = (copy.audits['cls-culprits-insight']!.details as { items: { items: { subItems?: { items: Record<string, unknown>[] } }[] }[] }).items;
+    const items = tables.flatMap((t) => t.items);
+    const subItems = items.find((i) => i.subItems?.items.length)!.subItems!.items;
+    subItems[0]!.cause = 404;
+    subItems.push({ cause: { unexpected: true } });
+    const causes = extractDiagnostics(copy).layoutShifts.flatMap((s) => s.causes);
+    expect(causes.some((c) => c.startsWith('404'))).toBe(true);
+    expect(causes.some((c) => c.startsWith('Unknown cause'))).toBe(true);
+    expect(causes.some((c) => c.includes('[object Object]'))).toBe(false);
+  });
+});
+
 describe('impactScore', () => {
   it('weights savings relative to each metric threshold', () => {
     // 250ms LCP (10% of 2.5s, weight 25) == 20ms TBT (10% of 200ms, weight 30) * 25/30

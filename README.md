@@ -42,6 +42,7 @@ export default {
   baseUrl: 'http://localhost:3000',
   pages: ['/', '/pricing'],
   sitemap: { url: '/sitemap.xml', limit: 50 }, // optional page discovery
+                               // (sitemap and child-sitemap URLs are fetched as-is: only point at sites you trust)
   perTemplate: 2,              // audit at most 2 pages per route shape, e.g. /products/:id
   runs: 3,                     // medians; 3+ recommended for comparisons
   preset: 'mobile',
@@ -71,7 +72,7 @@ Tools: `audit_url`, `audit_project`, `compare_runs`, `cross_browser`, `check_com
 
 ## CI (GitHub Actions)
 
-See [`examples/github-workflow.yml`](examples/github-workflow.yml). The action starts your app, runs `redline ci`, posts a single PR comment that updates on each push, writes a job summary, uploads the HTML report, and fails the check on budget violations. Pushes to `main` save the baseline to the Actions cache, and PRs compare against it.
+See [`examples/github-workflow.yml`](examples/github-workflow.yml). The action runs `@redline/cli@latest` by default; set `redline-version` to a fixed version for reproducible builds. The action starts your app, runs `redline ci`, posts a single PR comment that updates on each push, writes a job summary, uploads the HTML report, and fails the check on budget violations. Pushes to `main` save the baseline to the Actions cache, and PRs compare against it.
 
 ## AI explanations
 
@@ -89,7 +90,7 @@ docker build -t redline . && docker run --rm -p 8080:8080 --shm-size=1g redline
 |---|---|
 | `REDLINE_API_TOKEN` | Require `Authorization: Bearer <token>` to start audits |
 | `REDLINE_RATE_LIMIT` | Audits per client IP per hour (default 20) |
-| `REDLINE_TRUST_PROXY=1` | Rate limit by the last `X-Forwarded-For` entry. Only behind a reverse proxy you control |
+| `REDLINE_TRUST_PROXY=1` | Rate limit by the last `X-Forwarded-For` entry. Only behind a reverse proxy you control. Without it, clients behind a load balancer share one IP, so the limit becomes global |
 | `REDLINE_ALLOW_PRIVATE=1` | Allow localhost/private URLs. **Only on a trusted network.** |
 | `REDLINE_CHROME_FLAGS` | Extra Chrome flags (the image sets `--no-sandbox --disable-dev-shm-usage`) |
 

@@ -8,34 +8,82 @@ import net from 'node:net';
 export function isPrivateAddress(address: string): boolean {
   if (net.isIPv4(address)) return isPrivateV4(address);
   if (!net.isIPv6(address)) return true; // not an IP at all: refuse rather than guess
-  const a = address.toLowerCase().replace(/^\[|\]$/g, '');
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
-  if (mapped) return isPrivateV4(mapped[1]!);
-  if (a === '::' || a === '::1') return true;
-  const first = parseInt(a.split(':')[0] || '0', 16);
-  return (
-    (first & 0xfe00) === 0xfc00 || // fc00::/7 unique local
-    (first & 0xffc0) === 0xfe80 || // fe80::/10 link-local
-    (first & 0xff00) === 0xff00 || // ff00::/8 multicast
-    a.startsWith('64:ff9b:') || // NAT64, can reach IPv4 internals
-    a.startsWith('2001:db8:') // documentation
-  );
+  const groups = parseIPv6(address.replace(/^\[|\]$/g, ''));
+  if (!groups) return true;
+  return isPrivateV6(groups);
 }
+
+/** Expand any textual IPv6 form (compressed, zone-less, trailing dotted quad) into eight 16-bit groups. */
+function parseIPv6(text: string): number[] | undefined {
+  let a = text.toLowerCase().split('%')[0]!;
+  const dotted = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(a);
+  if (dotted) {
+    const [b0, b1, b2, b3] = dotted.slice(1).map(Number) as [number, number, number, number];
+    a = `${a.slice(0, dotted.index)}${((b0 << 8) | b1).toString(16)}:${((b2 << 8) | b3).toString(16)}`;
+  }
+  const halves = a.split('::');
+  if (halves.length > 2) return undefined;
+  const parse = (part: string) => (part ? part.split(':').map((g) => parseInt(g, 16)) : []);
+  const head = parse(halves[0]!);
+  const tail = halves.length === 2 ? parse(halves[1]!) : [];
+  const fill = 8 - head.length - tail.length;
+  if (halves.length === 2 ? fill < 1 : fill !== 0) return undefined;
+  const groups = [...head, ...Array<number>(halves.length === 2 ? fill : 0).fill(0), ...tail];
+  return groups.length === 8 && groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff) ? groups : undefined;
+}
+
+const v4FromGroups = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+
+const allZero = (groups: number[]) => groups.every((g) => g === 0);
+
+/** First six groups (joined) of the prefixes whose last 32 bits are an IPv4 address: ::/96 compatible, ::ffff:0:0/96 mapped, ::ffff:0:0:0/96 SIIT. */
+const V4_EMBEDDING_PREFIXES = new Set(['0:0:0:0:0:0', '0:0:0:0:0:65535', '0:0:0:0:65535:0']);
+
+/** The IPv4 address an IPv6 address tunnels or translates to, if its prefix is one of the embedding formats. */
+function embeddedV4(g: number[]): string | undefined {
+  const [g0 = 0, g1 = 0, g2 = 0, , , , g6 = 0, g7 = 0] = g;
+  if (g0 === 0x2002) return v4FromGroups(g1, g2); // 6to4 embeds the IPv4 address in groups 1-2
+  return V4_EMBEDDING_PREFIXES.has(g.slice(0, 6).join(':')) ? v4FromGroups(g6, g7) : undefined;
+}
+
+/** Non-embedding IPv6 ranges a public audit service must refuse, as [mask, value] on the first group. */
+const BLOCKED_V6_FIRST_GROUP: readonly (readonly [number, number])[] = [
+  [0xfe00, 0xfc00], // fc00::/7 unique local
+  [0xffc0, 0xfe80], // fe80::/10 link-local
+  [0xff00, 0xff00], // ff00::/8 multicast
+];
+
+/** Blocked two-group prefixes: 64:ff9b::/32 NAT64 (can reach IPv4 internals), 2001::/32 Teredo, 2001:db8::/32 documentation. */
+const BLOCKED_V6_PREFIXES: readonly (readonly [number, number])[] = [
+  [0x64, 0xff9b],
+  [0x2001, 0],
+  [0x2001, 0xdb8],
+];
+
+function isPrivateV6(g: number[]): boolean {
+  if (allZero(g.slice(0, 7)) && (g[7] ?? 0) <= 1) return true; // :: and ::1
+  const v4 = embeddedV4(g);
+  if (v4 !== undefined) return isPrivateV4(v4);
+  const [g0 = 0, g1 = 0] = g;
+  return BLOCKED_V6_FIRST_GROUP.some(([mask, value]) => (g0 & mask) === value) || BLOCKED_V6_PREFIXES.some(([a, b]) => g0 === a && g1 === b);
+}
+
+/** Blocked IPv4 ranges as [first octet, min second octet, max second octet]. */
+const PRIVATE_V4_RANGES: readonly (readonly [number, number, number])[] = [
+  [0, 0, 255], // "this" network
+  [10, 0, 255],
+  [127, 0, 255], // loopback
+  [100, 64, 127], // CGNAT
+  [169, 254, 254], // link-local, cloud metadata
+  [172, 16, 31],
+  [192, 168, 168],
+  [192, 0, 0], // IETF protocol assignments
+  [198, 18, 19], // benchmarking
+];
 
 function isPrivateV4(address: string): boolean {
   const [a = 0, b = 0] = address.split('.').map(Number);
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) || // CGNAT
-    (a === 169 && b === 254) || // link-local, cloud metadata
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 192 && b === 0) ||
-    (a === 198 && (b === 18 || b === 19)) || // benchmarking
-    a >= 224 // multicast and reserved
-  );
+  return a >= 224 /* multicast and reserved */ || PRIVATE_V4_RANGES.some(([first, lo, hi]) => a === first && b >= lo && b <= hi);
 }
 
 export interface VettedTarget {

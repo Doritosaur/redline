@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AuditResult, Preset } from './types.js';
@@ -12,7 +13,11 @@ export function historyKey(url: string, preset: Preset): string {
   const u = new URL(url);
   const pathPart = `${u.host}${u.pathname}`.replace(/\/+$/, '') || u.host;
   const slug = pathPart.replace(/[^a-z0-9.-]+/gi, '_').replace(/^_+|_+$/g, '');
-  return `${slug}__${preset}`;
+  // Pages that differ only by query string (/search?q=a vs ?q=b) are different pages.
+  // Params are sorted so ?a=1&b=2 and ?b=2&a=1 (the same page) share one history.
+  u.searchParams.sort();
+  const query = u.search ? `_q${crypto.createHash('sha1').update(u.search).digest('hex').slice(0, 8)}` : '';
+  return `${slug}${query}__${preset}`;
 }
 
 export function saveRun(result: AuditResult, dir = DEFAULT_HISTORY_DIR): string {

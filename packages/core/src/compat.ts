@@ -21,7 +21,7 @@ export interface CompatReport {
   filesScanned: number;
   issues: CompatIssue[];
   /** Files that could not be parsed, with the reason. */
-  skipped: Array<{ file: string; reason: string }>;
+  skipped: { file: string; reason: string }[];
 }
 
 export interface CompatOptions {
@@ -63,13 +63,21 @@ export async function checkCompat(root: string, options: CompatOptions = {}): Pr
 
   const js = files.filter((f) => JS_EXTENSIONS.has(path.extname(f)));
   const css = files.filter((f) => CSS_EXTENSIONS.has(path.extname(f)));
-  if (js.length) await checkJs(js, absRoot, queries, options.polyfills ?? [], report);
+  if (js.length) await checkJs({ files: js, root: absRoot, queries, polyfills: options.polyfills ?? [], report });
   if (css.length) await checkCss(css, absRoot, queries, report);
   report.issues.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
   return report;
 }
 
-async function checkJs(files: string[], root: string, queries: string[], polyfills: string[], report: CompatReport) {
+interface CheckJsOptions {
+  files: string[];
+  root: string;
+  queries: string[];
+  polyfills: string[];
+  report: CompatReport;
+}
+
+async function checkJs({ files, root, queries, polyfills, report }: CheckJsOptions) {
   const [{ Linter }, compat, esbuild, { SourceMapConsumer }] = await Promise.all([
     import('eslint'),
     import('eslint-plugin-compat'),
@@ -104,7 +112,7 @@ async function checkJs(files: string[], root: string, queries: string[], polyfil
           sourcefile: rel,
         });
         code = out.code;
-        map = new SourceMapConsumer(JSON.parse(out.map));
+        map = new SourceMapConsumer(JSON.parse(out.map) as ConstructorParameters<typeof SourceMapConsumer>[0]);
       } catch (err) {
         report.skipped.push({ file: rel, reason: firstLine(err) });
         continue;
@@ -122,7 +130,7 @@ async function checkJs(files: string[], root: string, queries: string[], polyfil
       report.issues.push({
         file: rel,
         line: pos?.line ?? m.line,
-        column: pos?.column !== undefined && pos.column !== null ? pos.column + 1 : m.column,
+        column: typeof pos?.column === 'number' ? pos.column + 1 : m.column,
         kind: 'js',
         feature: featureFromMessage(m.message),
         message: m.message,

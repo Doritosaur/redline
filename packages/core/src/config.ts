@@ -95,7 +95,7 @@ export async function loadConfig(cwd = process.cwd(), explicitFile?: string): Pr
       raw = mod.default ?? mod;
     }
   } catch (err) {
-    throw new Error(`Could not load ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Could not load ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   }
 
   const parsed = configSchema.safeParse(raw);

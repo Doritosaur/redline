@@ -29,59 +29,81 @@ function scoreStyle(score: number | null): 'dim' | 'green' | 'yellow' | 'red' {
   return score === null ? 'dim' : score >= 90 ? 'green' : score >= 50 ? 'yellow' : 'red';
 }
 
+type Comparison = NonNullable<PageReport['comparison']>;
+type Result = PageReport['result'];
+type Finding = Result['diagnostics']['findings'][number];
+
+const VERDICT_STYLE: Record<string, Style> = { regressed: 'red', improved: 'green' };
+const verdictStyle = (verdict: string): Style => VERDICT_STYLE[verdict] ?? 'dim';
+
+function scoreDeltaText(comparison: Comparison | undefined): string {
+  if (!comparison?.scoreDelta) return '';
+  const sign = comparison.scoreDelta > 0 ? '+' : '';
+  return styleText(verdictStyle(comparison.scoreVerdict), ` (${sign}${comparison.scoreDelta})`);
+}
+
+function headerLines(result: Result, comparison: Comparison | undefined): string[] {
+  const score = result.score === null ? 'n/a' : String(result.score);
+  const vs = comparison ? ` · vs. ${comparison.before.fetchedAt.slice(0, 16).replace('T', ' ')}` : '';
+  return [
+    `${bold(shortUrl(result.url))}  ${bold('score')} ${styleText(['bold', scoreStyle(result.score)], score)}${scoreDeltaText(comparison)}`,
+    dim(`${result.finalUrl} · ${result.preset} · median of ${result.runs} run(s)${vs}`),
+    '',
+  ];
+}
+
+function metricLines(result: Result, comparison: Comparison | undefined): string[] {
+  const width = Math.max(...result.metrics.map((m) => m.label.length));
+  return result.metrics.map((m) => {
+    const d = comparison?.metrics.find((x) => x.id === m.id);
+    const change = d ? styleText(verdictStyle(d.verdict), formatDelta(m.unit, d.delta).padStart(9)) : '';
+    return `  ${m.label.padEnd(width)}  ${formatMetric(m).padStart(8)}  ${change}${change ? '  ' : ''}${styleText(RATING_STYLE[m.rating], RATING_TEXT[m.rating])}`;
+  });
+}
+
+function violationLine(v: PageReport['violations'][number]): string {
+  const fmt = (n: number) => (v.metric === 'score' ? String(n) : v.metric === 'cls' ? n.toFixed(3) : formatMs(n));
+  return red(`  ✖ ${v.label} ${fmt(v.actual)} exceeds budget ${v.metric === 'score' ? '≥' : '≤'} ${fmt(v.limit)}`);
+}
+
+type FindingItem = Finding['items'][number];
+
+function itemLines(item: FindingItem): string[] {
+  const lines: string[] = [];
+  const where = item.selector ?? (item.url ? shortUrl(item.url) : item.label);
+  const src = item.sources?.[0];
+  const unused = src?.wastedBytes ? ` (${formatBytes(src.wastedBytes)} unused)` : '';
+  const from = src ? ` ← ${src.localPath ?? src.source.replace(/^.*node_modules\//, '')}${unused}` : '';
+  if (where || from) lines.push(dim(`     ${where ?? ''}${from}`));
+  if (item.notes?.[0]) lines.push(dim(`     ${truncate(item.notes[0], 110)}`));
+  return lines;
+}
+
+function findingLines(f: Finding, i: number): string[] {
+  if (f.devServerArtifact) return [dim(`  ${i + 1}. ${f.title}  (likely a dev-server artifact; check production headers)`)];
+  const savings = formatSavings(f.savings) || f.displayValue || '';
+  return [`  ${i + 1}. ${f.title}${savings ? `  ${styleText('red', savings)}` : ''}`, ...f.items.slice(0, 2).flatMap(itemLines)];
+}
+
+function lcpLines(result: Result): string[] {
+  const lcp = result.diagnostics.lcpElement;
+  if (!lcp) return [];
+  const lines = ['', `${bold('LCP element')} ${lcp.selector}`, dim(`  ${lcp.phases.map((p) => `${p.phase} ${formatMs(p.ms)}`).join(' · ')}`)];
+  const note = lcpPhaseNote(lcp, result.metrics.find((m) => m.id === 'lcp')?.value);
+  if (note) lines.push(dim(`  ${note}`));
+  return lines;
+}
+
 export function renderPage(page: PageReport, options: { findings?: number } = {}): string {
   const { result, comparison } = page;
-  const lines = [''];
-  const score = result.score === null ? 'n/a' : String(result.score);
-  const delta = comparison?.scoreDelta
-    ? styleText(comparison.scoreVerdict === 'regressed' ? 'red' : comparison.scoreVerdict === 'improved' ? 'green' : 'dim', ` (${comparison.scoreDelta > 0 ? '+' : ''}${comparison.scoreDelta})`)
-    : '';
-  lines.push(`${bold(shortUrl(result.url))}  ${bold('score')} ${styleText(['bold', scoreStyle(result.score)], score)}${delta}`);
-  lines.push(dim(`${result.finalUrl} · ${result.preset} · median of ${result.runs} run(s)${comparison ? ` · vs. ${comparison.before.fetchedAt.slice(0, 16).replace('T', ' ')}` : ''}`));
-  lines.push('');
-
-  const width = Math.max(...result.metrics.map((m) => m.label.length));
-  for (const m of result.metrics) {
-    const d = comparison?.metrics.find((x) => x.id === m.id);
-    const change = d
-      ? styleText(d.verdict === 'regressed' ? 'red' : d.verdict === 'improved' ? 'green' : 'dim', formatDelta(m.unit, d.delta).padStart(9))
-      : '';
-    lines.push(`  ${m.label.padEnd(width)}  ${formatMetric(m).padStart(8)}  ${change}${change ? '  ' : ''}${styleText(RATING_STYLE[m.rating], RATING_TEXT[m.rating])}`);
-  }
+  const lines = ['', ...headerLines(result, comparison), ...metricLines(result, comparison)];
   if (comparison?.lowConfidence) lines.push(dim('  Single-run comparison; differences may be noise. Use --runs 3 for reliable deltas.'));
-
-  for (const v of page.violations) {
-    const fmt = (n: number) => (v.metric === 'score' ? String(n) : v.metric === 'cls' ? n.toFixed(3) : formatMs(n));
-    lines.push(red(`  ✖ ${v.label} ${fmt(v.actual)} exceeds budget ${v.metric === 'score' ? '≥' : '≤'} ${fmt(v.limit)}`));
-  }
-
+  lines.push(...page.violations.map(violationLine));
   if (page.field) lines.push('', ...renderField(page.field));
 
   const findings = result.diagnostics.findings.slice(0, options.findings ?? 5);
-  if (findings.length) {
-    lines.push('', bold('Top fixes'));
-    findings.forEach((f, i) => {
-      const savings = formatSavings(f.savings) || f.displayValue || '';
-      if (f.devServerArtifact) {
-        lines.push(dim(`  ${i + 1}. ${f.title}  (likely a dev-server artifact; check production headers)`));
-        return;
-      }
-      lines.push(`  ${i + 1}. ${f.title}${savings ? `  ${styleText('red', savings)}` : ''}`);
-      for (const item of f.items.slice(0, 2)) {
-        const where = item.selector ?? (item.url ? shortUrl(item.url) : item.label);
-        const src = item.sources?.[0];
-        const from = src ? ` ← ${src.localPath ?? src.source.replace(/^.*node_modules\//, '')}${src.wastedBytes ? ` (${formatBytes(src.wastedBytes)} unused)` : ''}` : '';
-        if (where || from) lines.push(dim(`     ${where ?? ''}${from}`));
-        if (item.notes?.[0]) lines.push(dim(`     ${truncate(item.notes[0], 110)}`));
-      }
-    });
-  }
-  const lcp = result.diagnostics.lcpElement;
-  if (lcp) {
-    lines.push('', `${bold('LCP element')} ${lcp.selector}`, dim(`  ${lcp.phases.map((p) => `${p.phase} ${formatMs(p.ms)}`).join(' · ')}`));
-    const note = lcpPhaseNote(lcp, result.metrics.find((m) => m.id === 'lcp')?.value);
-    if (note) lines.push(dim(`  ${note}`));
-  }
+  if (findings.length) lines.push('', bold('Top fixes'), ...findings.flatMap(findingLines));
+  lines.push(...lcpLines(result));
   return lines.join('\n');
 }
 

@@ -28,7 +28,7 @@ describe.skipIf(!hasChrome)('audit() against a real page in Chrome', () => {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
   });
-  afterAll(() => server?.close());
+  afterAll(() => { server.close(); });
 
   it('returns a score, Core Web Vitals and diagnostics', { timeout: 120_000 }, async () => {
     const progress: number[] = [];
@@ -46,7 +46,7 @@ describe.skipIf(!hasChrome)('audit() against a real page in Chrome', () => {
   it('can be aborted, killing Chrome and rejecting with the abort reason', { timeout: 60_000 }, async () => {
     const controller = new AbortController();
     const pending = audit(base, { chromeFlags: ['--no-sandbox'], signal: controller.signal });
-    setTimeout(() => controller.abort(new Error('stop')), 1500);
+    setTimeout(() => { controller.abort(new Error('stop')); }, 1500);
     await expect(pending).rejects.toThrow('stop');
   });
 });

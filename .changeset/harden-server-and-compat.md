@@ -6,6 +6,9 @@
 ---
 
 - server: route Chrome through a vetting proxy so redirects and subresources can't reach internal addresses; abort audits after a timeout; add `REDLINE_TRUST_PROXY` for rate limiting behind a reverse proxy.
+- server: stop Chrome bypassing the vetting proxy for loopback and link-local addresses; bound the CONNECT handshake and idle plain-HTTP exchanges without cutting established tunnels; refuse every IPv6 form that embeds an IPv4 address (IPv4-compatible, mapped, SIIT, 6to4, Teredo, NAT64); expose `VettingProxy.port`.
+- core: history keys now include the query string, so `/search?q=a` and `?q=b` no longer share runs and baselines (parameter order is ignored) (existing history for URLs with query strings is not carried over).
+- agent: `explain` resolves symlinks so files outside `--root` are never sent, works when the root is a filesystem root, and lists every referenced file as omitted when the root can't be resolved.
 - core: `audit()` accepts an `AbortSignal`, `runFlow()` accepts `chromeFlags`, and reports explain a large gap between traced LCP phases and the throttled LCP.
 - core: fix `checkCompat` skipping every JS file when the scanned directory is outside the current working directory.
 - core: honor `REDLINE_CHROME_FLAGS` for audits and flows (e.g. `--no-sandbox` in locked-down CI).

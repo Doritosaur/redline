@@ -125,13 +125,17 @@ export function collectSources(
   }
   for (const issue of report.compat?.issues ?? []) add(issue.file, 1);
 
+  const root = realpathOrUndefined(path.resolve(projectRoot));
+  const byRelevance = [...ranked.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p);
+  // An unreadable root must be visible: report every referenced file as omitted rather than silently sending none.
+  if (!root) return { included: [], omitted: byRelevance };
   const included: SourceFile[] = [];
   const omitted: string[] = [];
   let used = 0;
-  for (const rel of [...ranked.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p)) {
-    const full = path.resolve(projectRoot, rel);
-    // Never read outside the project, whatever a source map claims.
-    if (!full.startsWith(path.resolve(projectRoot) + path.sep) || !fs.existsSync(full)) continue;
+  for (const rel of byRelevance) {
+    // Never read outside the project, whatever a source map claims or a symlink points at.
+    const full = realpathOrUndefined(path.resolve(projectRoot, rel));
+    if (!full || !isInside(root, full)) continue;
     const size = fs.statSync(full).size;
     if (size > MAX_FILE_BYTES || used + size > budget) {
       omitted.push(rel);
@@ -141,4 +145,18 @@ export function collectSources(
     used += size;
   }
   return { included, omitted };
+}
+
+/** True when `child` is strictly inside `parent`. Both must already be real paths. Works for filesystem roots, unlike a `startsWith(parent + sep)` check. */
+export function isInside(parent: string, child: string): boolean {
+  const rel = path.relative(parent, child);
+  return rel !== '' && !rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel);
+}
+
+function realpathOrUndefined(p: string): string | undefined {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return undefined;
+  }
 }

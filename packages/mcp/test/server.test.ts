@@ -38,7 +38,7 @@ describe('redline MCP server', () => {
 
   const call = async (name: string, args: Record<string, unknown>) => {
     const res = await client.callTool({ name, arguments: args });
-    const text = (res.content as Array<{ text: string }>).map((c) => c.text).join('\n');
+    const text = (res.content as { text: string }[]).map((c) => c.text).join('\n');
     return { isError: Boolean(res.isError), text };
   };
 
@@ -93,7 +93,7 @@ describe('redline MCP server', () => {
   });
 
   it('rejects non-http URLs at the schema level', async () => {
-    const res = await call('audit_url', { url: 'file:///etc/passwd' }).catch((err: Error) => ({ isError: true, text: err.message }));
+    const res = await call('audit_url', { url: 'file:///etc/passwd' }).catch((err: unknown) => ({ isError: true, text: err instanceof Error ? err.message : String(err) }));
     expect(res.isError).toBe(true);
   });
 });

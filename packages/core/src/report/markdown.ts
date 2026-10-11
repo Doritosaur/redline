@@ -57,6 +57,54 @@ function summaryTable(pages: PageReport[]): string[] {
   return ['| | Page | Score | LCP | TBT | CLS |', '|---|---|---|---|---|---|', ...rows];
 }
 
+type Finding = PageReport['result']['diagnostics']['findings'][number];
+
+function violationLine(v: PageReport['violations'][number]): string {
+  const actual = v.metric === 'score' ? String(v.actual) : v.metric === 'cls' ? v.actual.toFixed(3) : formatMs(v.actual);
+  const limit = v.metric === 'score' ? `≥ ${v.limit}` : v.metric === 'cls' ? `≤ ${v.limit}` : `≤ ${formatMs(v.limit)}`;
+  return `- ❌ **${v.label}** is ${actual}, budget ${limit}`;
+}
+
+function metricsTable(page: PageReport): string[] {
+  const { result, comparison } = page;
+  const out = [comparison ? '| Metric | Value | Change | |' : '| Metric | Value | |', comparison ? '|---|---|---|---|' : '|---|---|---|'];
+  for (const metric of result.metrics) {
+    const delta = comparison?.metrics.find((d) => d.id === metric.id);
+    const change = delta ? `${formatDelta(metric.unit, delta.delta)}${delta.verdict === 'regressed' ? ' ⚠️' : delta.verdict === 'improved' ? ' ✅' : ''}` : '';
+    out.push(`| ${metric.label} | ${formatMetric(metric)} | ${comparison ? `${change} |` : ''} ${RATING_ICON[metric.rating]} |`);
+  }
+  return out;
+}
+
+function fieldLine(page: PageReport): string[] {
+  const field = page.field;
+  if (!field) return [];
+  return ['', `**Real users (Chrome UX Report, ${field.scope}${field.collectionPeriod ? `, ${field.collectionPeriod}` : ''})**: ` +
+    field.metrics.map((m) => `${m.id.toUpperCase()} ${RATING_ICON[m.rating]} ${m.id === 'cls' ? m.p75.toFixed(2) : formatMs(m.p75)}`).join(' · ')];
+}
+
+function findingLines(f: Finding, i: number): string[] {
+  const link = learnMoreUrl(f);
+  const savings = formatSavings(f.savings);
+  const artifact = f.devServerArtifact ? ' _(localhost: likely a dev-server artifact, verify against production)_' : '';
+  const out = [`${i + 1}. **${link ? `[${f.title}](${link})` : f.title}**${savings ? ` — saves ${savings}` : f.displayValue ? ` — ${f.displayValue}` : ''}${artifact}`];
+  for (const item of f.items.slice(0, 3)) {
+    const where = item.selector ? `\`${item.selector}\`` : item.url ? `\`${shortUrl(item.url)}\`` : item.label ?? '';
+    const srcs = (item.sources ?? []).slice(0, 2).map((s) => `\`${s.localPath ?? s.source.replace(/^.*node_modules\//, '')}\`${s.wastedBytes ? ` (${formatBytes(s.wastedBytes)} unused)` : ''}`);
+    const note = item.notes?.[0];
+    out.push(`   - ${[where, srcs.length ? `from ${srcs.join(', ')}` : '', note ?? ''].filter(Boolean).join(' — ')}`);
+  }
+  return out;
+}
+
+function baselineLines(page: PageReport): string[] {
+  const { comparison } = page;
+  const out: string[] = [];
+  if (comparison?.newFindings.length) out.push('', `New issues since baseline: ${comparison.newFindings.map((f) => `\`${f}\``).join(', ')}`);
+  if (comparison?.resolvedFindings.length) out.push('', `Resolved since baseline: ${comparison.resolvedFindings.map((f) => `\`${f}\``).join(', ')}`);
+  return out;
+}
+
 function pageSection(page: PageReport, options: MarkdownOptions): string[] {
   const { result, comparison } = page;
   const out: string[] = [];
@@ -64,78 +112,66 @@ function pageSection(page: PageReport, options: MarkdownOptions): string[] {
   out.push(`### \`${shortUrl(result.url)}\` · score ${result.score ?? 'n/a'}${scoreDelta}`);
   out.push(`<sub>${result.finalUrl} · ${result.preset} · median of ${result.runs} run(s)${page.template ? ` · template \`${page.template}\`` : ''}</sub>`, '');
 
-  for (const v of page.violations) {
-    const actual = v.metric === 'score' ? String(v.actual) : v.metric === 'cls' ? v.actual.toFixed(3) : formatMs(v.actual);
-    const limit = v.metric === 'score' ? `≥ ${v.limit}` : v.metric === 'cls' ? `≤ ${v.limit}` : `≤ ${formatMs(v.limit)}`;
-    out.push(`- ❌ **${v.label}** is ${actual}, budget ${limit}`);
-  }
+  for (const v of page.violations) out.push(violationLine(v));
   if (page.violations.length) out.push('');
 
-  const header = comparison ? '| Metric | Value | Change | |' : '| Metric | Value | |';
-  out.push(header, comparison ? '|---|---|---|---|' : '|---|---|---|');
-  for (const metric of result.metrics) {
-    const delta = comparison?.metrics.find((d) => d.id === metric.id);
-    const change = delta ? `${formatDelta(metric.unit, delta.delta)}${delta.verdict === 'regressed' ? ' ⚠️' : delta.verdict === 'improved' ? ' ✅' : ''}` : '';
-    out.push(`| ${metric.label} | ${formatMetric(metric)} | ${comparison ? `${change} |` : ''} ${RATING_ICON[metric.rating]} |`);
-  }
+  out.push(...metricsTable(page));
   if (comparison?.lowConfidence) out.push('', '<sub>Compared single runs; differences may be noise. Use `--runs 3` or more.</sub>');
-
-  if (page.field) {
-    out.push('', `**Real users (Chrome UX Report, ${page.field.scope}${page.field.collectionPeriod ? `, ${page.field.collectionPeriod}` : ''})**: ` +
-      page.field.metrics.map((m) => `${m.id.toUpperCase()} ${RATING_ICON[m.rating]} ${m.id === 'cls' ? m.p75.toFixed(2) : formatMs(m.p75)}`).join(' · '));
-  }
+  out.push(...fieldLine(page));
 
   const findings = result.diagnostics.findings.slice(0, options.maxFindings ?? 5);
   if (findings.length) {
     out.push('', '**Top fixes**', '');
-    findings.forEach((f, i) => {
-      const link = learnMoreUrl(f);
-      const savings = formatSavings(f.savings);
-      const artifact = f.devServerArtifact ? ' _(localhost: likely a dev-server artifact, verify against production)_' : '';
-      out.push(`${i + 1}. **${link ? `[${f.title}](${link})` : f.title}**${savings ? ` — saves ${savings}` : f.displayValue ? ` — ${f.displayValue}` : ''}${artifact}`);
-      for (const item of f.items.slice(0, 3)) {
-        const where = item.selector ? `\`${item.selector}\`` : item.url ? `\`${shortUrl(item.url)}\`` : item.label ?? '';
-        const srcs = (item.sources ?? []).slice(0, 2).map((s) => `\`${s.localPath ?? s.source.replace(/^.*node_modules\//, '')}\`${s.wastedBytes ? ` (${formatBytes(s.wastedBytes)} unused)` : ''}`);
-        const note = item.notes?.[0];
-        out.push(`   - ${[where, srcs.length ? `from ${srcs.join(', ')}` : '', note ?? ''].filter(Boolean).join(' — ')}`);
-      }
-    });
+    findings.forEach((f, i) => out.push(...findingLines(f, i)));
   }
-  if (comparison?.newFindings.length) out.push('', `New issues since baseline: ${comparison.newFindings.map((f) => `\`${f}\``).join(', ')}`);
-  if (comparison?.resolvedFindings.length) out.push('', `Resolved since baseline: ${comparison.resolvedFindings.map((f) => `\`${f}\``).join(', ')}`);
+  out.push(...baselineLines(page));
 
   if (options.details !== false) out.push(...detailsBlock(page));
   return out;
 }
 
+function lcpLines(page: PageReport): string[] {
+  const el = page.result.diagnostics.lcpElement;
+  if (!el) return [];
+  const body = [`**LCP element:** \`${el.selector}\``, ''];
+  if (el.phases.length) body.push(el.phases.map((p) => `${p.phase}: ${formatMs(p.ms)}`).join(' · '), '');
+  const note = lcpPhaseNote(el, page.result.metrics.find((m) => m.id === 'lcp')?.value);
+  if (note) body.push(`_${note}_`, '');
+  return body;
+}
+
+function shiftLines(page: PageReport): string[] {
+  const shifts = page.result.diagnostics.layoutShifts;
+  if (!shifts.length) return [];
+  const body = ['**Layout shifts**', ''];
+  for (const s of shifts.slice(0, 5)) body.push(`- \`${s.selector}\` shifted ${s.score.toFixed(3)}${s.causes.length ? ` — ${s.causes.join('; ')}` : ''}`);
+  body.push('');
+  return body;
+}
+
+function longTaskLines(page: PageReport): string[] {
+  const tasks = page.result.diagnostics.longTasks;
+  if (!tasks.length) return [];
+  const body = ['**Long tasks**', ''];
+  for (const t of tasks.slice(0, 5)) body.push(`- ${formatMs(t.durationMs)} at ${formatMs(t.startMs)} in \`${shortUrl(t.url)}\``);
+  body.push('');
+  return body;
+}
+
+function sourceLines(page: PageReport): string[] {
+  const sources = page.result.diagnostics.sources.slice(0, 10);
+  if (!sources.length) return [];
+  const body = ['**Largest JavaScript sources** (from source maps)', '', '| Source | Size | Unused |', '|---|---|---|'];
+  for (const s of sources) {
+    const name = s.package ? `📦 ${s.package}` : `\`${s.localPath ?? s.source}\``;
+    body.push(`| ${name} | ${formatBytes(s.bytes)} | ${s.unusedBytes ? formatBytes(s.unusedBytes) : '–'} |`);
+  }
+  body.push('');
+  return body;
+}
+
 function detailsBlock(page: PageReport): string[] {
-  const d = page.result.diagnostics;
-  const body: string[] = [];
-  if (d.lcpElement) {
-    body.push(`**LCP element:** \`${d.lcpElement.selector}\``, '');
-    if (d.lcpElement.phases.length) body.push(d.lcpElement.phases.map((p) => `${p.phase}: ${formatMs(p.ms)}`).join(' · '), '');
-    const note = lcpPhaseNote(d.lcpElement, page.result.metrics.find((m) => m.id === 'lcp')?.value);
-    if (note) body.push(`_${note}_`, '');
-  }
-  if (d.layoutShifts.length) {
-    body.push('**Layout shifts**', '');
-    for (const s of d.layoutShifts.slice(0, 5)) body.push(`- \`${s.selector}\` shifted ${s.score.toFixed(3)}${s.causes.length ? ` — ${s.causes.join('; ')}` : ''}`);
-    body.push('');
-  }
-  if (d.longTasks.length) {
-    body.push('**Long tasks**', '');
-    for (const t of d.longTasks.slice(0, 5)) body.push(`- ${formatMs(t.durationMs)} at ${formatMs(t.startMs)} in \`${shortUrl(t.url)}\``);
-    body.push('');
-  }
-  const sources = d.sources.slice(0, 10);
-  if (sources.length) {
-    body.push('**Largest JavaScript sources** (from source maps)', '', '| Source | Size | Unused |', '|---|---|---|');
-    for (const s of sources) {
-      const name = s.package ? `📦 ${s.package}` : `\`${s.localPath ?? s.source}\``;
-      body.push(`| ${name} | ${formatBytes(s.bytes)} | ${s.unusedBytes ? formatBytes(s.unusedBytes) : '–'} |`);
-    }
-    body.push('');
-  }
+  const body = [...lcpLines(page), ...shiftLines(page), ...longTaskLines(page), ...sourceLines(page)];
   return body.length ? ['', '<details><summary>Diagnostics</summary>', '', ...body, '</details>'] : [];
 }
 

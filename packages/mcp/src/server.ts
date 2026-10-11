@@ -30,10 +30,10 @@ const projectRoot = z
   .optional()
   .describe('Absolute path of the project source. Enables mapping bundles back to source files; run history is stored in <projectRoot>/.redline');
 
-type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
+type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
 
-/** Run a tool body, returning failures as tool errors the model can read instead of crashing the server. */
-async function tool(fn: () => Promise<string>): Promise<ToolResult> {
+/** Run a tool body (sync or async), returning failures as tool errors the model can read instead of crashing the server. */
+async function tool(fn: () => string | Promise<string>): Promise<ToolResult> {
   try {
     return { content: [{ type: 'text', text: await fn() }] };
   } catch (err) {
@@ -43,11 +43,7 @@ async function tool(fn: () => Promise<string>): Promise<ToolResult> {
 
 const historyDir = (root?: string) => path.join(root ?? process.cwd(), '.redline');
 
-/** Build the Redline MCP server. The caller connects a transport. */
-export function createMcpServer(version: string): McpServer {
-  // stdout carries the MCP protocol on stdio; anything else written there corrupts it. Log to stderr only.
-  const server = new McpServer({ name: 'redline', version });
-
+function registerAuditUrl(server: McpServer): void {
   server.registerTool(
     'audit_url',
     {
@@ -77,7 +73,9 @@ export function createMcpServer(version: string): McpServer {
         return renderMarkdown({ generatedAt: new Date().toISOString(), pages: [page] }, { maxFindings: 8 });
       }),
   );
+}
 
+function registerAuditProject(server: McpServer): void {
   server.registerTool(
     'audit_project',
     {
@@ -105,7 +103,9 @@ export function createMcpServer(version: string): McpServer {
         return renderMarkdown({ generatedAt: new Date().toISOString(), pages }, { maxFindings: 5 });
       }),
   );
+}
 
+function registerCompareRuns(server: McpServer): void {
   server.registerTool(
     'compare_runs',
     {
@@ -115,7 +115,7 @@ export function createMcpServer(version: string): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     ({ url, preset, projectRoot }) =>
-      tool(async () => {
+      tool(() => {
         const runs = listRuns(url, preset, historyDir(projectRoot));
         if (runs.length < 2) throw new Error(`Need at least two saved runs of ${url} (${preset}); found ${runs.length}. Run audit_url first.`);
         const [before, after] = runs.slice(-2) as [(typeof runs)[0], (typeof runs)[0]];
@@ -126,7 +126,9 @@ export function createMcpServer(version: string): McpServer {
         return renderMarkdown(report, { maxFindings: 3, details: false });
       }),
   );
+}
 
+function registerCrossBrowser(server: McpServer): void {
   server.registerTool(
     'cross_browser',
     {
@@ -140,7 +142,9 @@ export function createMcpServer(version: string): McpServer {
     ({ url, runs }) =>
       tool(async () => renderMarkdown({ generatedAt: new Date().toISOString(), pages: [], browsers: { url, runs: await measureAcrossBrowsers(url, { runs }) } })),
   );
+}
 
+function registerCheckCompat(server: McpServer): void {
   server.registerTool(
     'check_compat',
     {
@@ -159,7 +163,9 @@ export function createMcpServer(version: string): McpServer {
         renderMarkdown({ generatedAt: new Date().toISOString(), pages: [], compat: await checkCompat(projectRoot, browsers ? { browsers } : {}) }),
       ),
   );
+}
 
+function registerRunFlow(server: McpServer): void {
   server.registerTool(
     'run_flow',
     {
@@ -176,7 +182,9 @@ export function createMcpServer(version: string): McpServer {
         return renderMarkdown({ generatedAt: new Date().toISOString(), pages: [], flows: [flow] });
       }),
   );
+}
 
+function registerFieldData(server: McpServer): void {
   server.registerTool(
     'field_data',
     {
@@ -196,6 +204,18 @@ export function createMcpServer(version: string): McpServer {
         return JSON.stringify(data, null, 2);
       }),
   );
+}
 
+/** Build the Redline MCP server. The caller connects a transport. */
+export function createMcpServer(version: string): McpServer {
+  // stdout carries the MCP protocol on stdio; anything else written there corrupts it. Log to stderr only.
+  const server = new McpServer({ name: 'redline', version });
+  registerAuditUrl(server);
+  registerAuditProject(server);
+  registerCompareRuns(server);
+  registerCrossBrowser(server);
+  registerCheckCompat(server);
+  registerRunFlow(server);
+  registerFieldData(server);
   return server;
 }

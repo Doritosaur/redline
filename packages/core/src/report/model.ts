@@ -39,7 +39,7 @@ export function formatMs(ms: number): string {
  * simulation. When they differ a lot (a big image that only hurts on a slow network), say so rather than let the
  * two numbers look contradictory.
  */
-export function lcpPhaseNote(lcp: { phases: Array<{ ms: number }> } | undefined, lcpMetricMs: number | undefined): string | undefined {
+export function lcpPhaseNote(lcp: { phases: { ms: number }[] } | undefined, lcpMetricMs: number | undefined): string | undefined {
   if (!lcp || !lcpMetricMs) return undefined;
   const observed = lcp.phases.reduce((sum, p) => sum + p.ms, 0);
   if (observed <= 0 || lcpMetricMs < observed * 2) return undefined;

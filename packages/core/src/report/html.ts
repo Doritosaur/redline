@@ -51,10 +51,9 @@ function summaryTable(pages: PageReport[]): string {
   return `<section><h2>Pages</h2><div class="scroll"><table><thead><tr><th>Page</th><th>Score</th><th>LCP</th><th>TBT</th><th>CLS</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
-function pageSection(page: PageReport, index: number): string {
+function metricRows(page: PageReport): string {
   const { result, comparison } = page;
-  const d = result.diagnostics;
-  const metricRows = result.metrics
+  return result.metrics
     .map((m) => {
       const delta = comparison?.metrics.find((x) => x.id === m.id);
       const change = delta
@@ -65,74 +64,91 @@ function pageSection(page: PageReport, index: number): string {
       return `<tr><td>${esc(m.label)}</td><td class="num strong">${esc(formatMetric(m))}</td>${change}<td><span class="pill ${m.rating}">${RATING_LABEL[m.rating]}</span></td></tr>`;
     })
     .join('');
+}
 
-  const findings = d.findings
-    .slice(0, 8)
-    .map((f) => {
-      const link = learnMoreUrl(f);
-      const items = f.items
-        .slice(0, 4)
-        .map((item) => {
-          const where = item.selector ?? (item.url ? shortUrl(item.url) : item.label ?? '');
-          const sources = (item.sources ?? [])
-            .slice(0, 3)
-            .map((s) => `<code>${esc(s.localPath ?? s.source.replace(/^.*node_modules\//, ''))}</code>${s.wastedBytes ? ` ${esc(formatBytes(s.wastedBytes))} unused` : ''}`)
-            .join(', ');
-          return `<li>${where ? `<code>${esc(where)}</code>` : ''}${sources ? ` from ${sources}` : ''}${item.notes?.length ? `<div class="note">${esc(item.notes[0]!)}</div>` : ''}</li>`;
-        })
-        .join('');
-      const savings = formatSavings(f.savings);
-      const artifact = f.devServerArtifact ? '<div class="note">Localhost only: dev servers usually skip these headers. Verify against production.</div>' : '';
-      return `<li class="finding${f.devServerArtifact ? ' muted-finding' : ''}"><div class="finding-head"><strong>${esc(f.title)}</strong>${savings ? `<span class="savings">${esc(savings)}</span>` : f.displayValue ? `<span class="savings">${esc(f.displayValue)}</span>` : ''}</div>${artifact}
+type Finding = PageReport['result']['diagnostics']['findings'][number];
+type FindingItem = Finding['items'][number];
+
+function findingItem(item: FindingItem): string {
+  const where = item.selector ?? (item.url ? shortUrl(item.url) : item.label ?? '');
+  const sources = (item.sources ?? [])
+    .slice(0, 3)
+    .map((s) => `<code>${esc(s.localPath ?? s.source.replace(/^.*node_modules\//, ''))}</code>${s.wastedBytes ? ` ${esc(formatBytes(s.wastedBytes))} unused` : ''}`)
+    .join(', ');
+  return `<li>${where ? `<code>${esc(where)}</code>` : ''}${sources ? ` from ${sources}` : ''}${item.notes?.length ? `<div class="note">${esc(item.notes[0]!)}</div>` : ''}</li>`;
+}
+
+function findingHtml(f: Finding): string {
+  const link = learnMoreUrl(f);
+  const items = f.items.slice(0, 4).map(findingItem).join('');
+  const savings = formatSavings(f.savings);
+  const artifact = f.devServerArtifact ? '<div class="note">Localhost only: dev servers usually skip these headers. Verify against production.</div>' : '';
+  return `<li class="finding${f.devServerArtifact ? ' muted-finding' : ''}"><div class="finding-head"><strong>${esc(f.title)}</strong>${savings ? `<span class="savings">${esc(savings)}</span>` : f.displayValue ? `<span class="savings">${esc(f.displayValue)}</span>` : ''}</div>${artifact}
 <p>${esc(plainDescription(f))}${link ? ` <a href="${esc(link)}" target="_blank" rel="noopener">Learn more</a>` : ''}</p>${items ? `<ul class="items">${items}</ul>` : ''}</li>`;
-    })
-    .join('');
+}
 
-  const violations = page.violations
+function violationsHtml(page: PageReport): string {
+  return page.violations
     .map((v) => {
       const fmt = (n: number) => (v.metric === 'score' ? String(n) : v.metric === 'cls' ? n.toFixed(3) : formatMs(n));
       return `<li><strong>${esc(v.label)}</strong> is ${esc(fmt(v.actual))}; budget ${v.metric === 'score' ? '≥' : '≤'} ${esc(fmt(v.limit))}</li>`;
     })
     .join('');
+}
 
-  const field = page.field
-    ? `<h3>Real users <span class="sub">Chrome UX Report · ${esc(page.field.scope)}${page.field.collectionPeriod ? ` · ${esc(page.field.collectionPeriod)}` : ''}</span></h3>
+function fieldHtml(page: PageReport): string {
+  if (!page.field) return '';
+  return `<h3>Real users <span class="sub">Chrome UX Report · ${esc(page.field.scope)}${page.field.collectionPeriod ? ` · ${esc(page.field.collectionPeriod)}` : ''}</span></h3>
 <div class="field">${page.field.metrics
-        .map(
-          (m) => `<div class="field-metric"><div class="label">${esc(m.id.toUpperCase())} p75</div><div class="value"><span class="dot ${m.rating}"></span>${esc(m.id === 'cls' ? m.p75.toFixed(2) : formatMs(m.p75))}</div>
+    .map(
+      (m) => `<div class="field-metric"><div class="label">${esc(m.id.toUpperCase())} p75</div><div class="value"><span class="dot ${m.rating}"></span>${esc(m.id === 'cls' ? m.p75.toFixed(2) : formatMs(m.p75))}</div>
 <div class="dist" role="img" aria-label="${pct(m.distribution.good)} good, ${pct(m.distribution.needsImprovement)} needs improvement, ${pct(m.distribution.poor)} poor"><span class="good" style="width:${pct(m.distribution.good)}"></span><span class="needs-improvement" style="width:${pct(m.distribution.needsImprovement)}"></span><span class="poor" style="width:${pct(m.distribution.poor)}"></span></div></div>`,
-        )
-        .join('')}</div>`
-    : '';
+    )
+    .join('')}</div>`;
+}
 
-  const lcp = d.lcpElement
-    ? `<h3>LCP element</h3><p><code>${esc(d.lcpElement.selector)}</code></p>${
-        d.lcpElement.phases.length ? `<div class="phases">${d.lcpElement.phases.map((p) => `<div><span class="label">${esc(p.phase)}</span><span class="num">${esc(formatMs(p.ms))}</span></div>`).join('')}</div>` : ''
-      }${(() => {
-        const note = lcpPhaseNote(d.lcpElement, result.metrics.find((m) => m.id === 'lcp')?.value);
-        return note ? `<p class="muted">${esc(note)}</p>` : '';
-      })()}`
-    : '';
-  const shifts = d.layoutShifts.length
-    ? `<h3>Layout shifts</h3><ul class="plain">${d.layoutShifts.slice(0, 5).map((s) => `<li><code>${esc(s.selector)}</code> <span class="num">${s.score.toFixed(3)}</span>${s.causes.length ? `<div class="note">${esc(s.causes.join('; '))}</div>` : ''}</li>`).join('')}</ul>`
-    : '';
-  const sources = d.sources.length
-    ? `<h3>Largest JavaScript sources <span class="sub">from source maps</span></h3><div class="scroll"><table><thead><tr><th>Source</th><th class="num">Size</th><th class="num">Unused</th></tr></thead><tbody>${d.sources
-        .slice(0, 12)
-        .map((s) => `<tr><td>${s.package ? `<span class="pkg">package</span> ${esc(s.package)}` : `<code>${esc(s.localPath ?? s.source)}</code>`}</td><td class="num">${esc(formatBytes(s.bytes))}</td><td class="num">${s.unusedBytes ? esc(formatBytes(s.unusedBytes)) : '–'}</td></tr>`)
-        .join('')}</tbody></table></div>`
-    : '';
+function lcpHtml(page: PageReport): string {
+  const el = page.result.diagnostics.lcpElement;
+  if (!el) return '';
+  const phases = el.phases.length ? `<div class="phases">${el.phases.map((p) => `<div><span class="label">${esc(p.phase)}</span><span class="num">${esc(formatMs(p.ms))}</span></div>`).join('')}</div>` : '';
+  const note = lcpPhaseNote(el, page.result.metrics.find((m) => m.id === 'lcp')?.value);
+  return `<h3>LCP element</h3><p><code>${esc(el.selector)}</code></p>${phases}${note ? `<p class="muted">${esc(note)}</p>` : ''}`;
+}
 
+function shiftsHtml(page: PageReport): string {
+  const shifts = page.result.diagnostics.layoutShifts;
+  if (!shifts.length) return '';
+  return `<h3>Layout shifts</h3><ul class="plain">${shifts.slice(0, 5).map((s) => `<li><code>${esc(s.selector)}</code> <span class="num">${s.score.toFixed(3)}</span>${s.causes.length ? `<div class="note">${esc(s.causes.join('; '))}</div>` : ''}</li>`).join('')}</ul>`;
+}
+
+function sourcesHtml(page: PageReport): string {
+  const sources = page.result.diagnostics.sources;
+  if (!sources.length) return '';
+  return `<h3>Largest JavaScript sources <span class="sub">from source maps</span></h3><div class="scroll"><table><thead><tr><th>Source</th><th class="num">Size</th><th class="num">Unused</th></tr></thead><tbody>${sources
+    .slice(0, 12)
+    .map((s) => `<tr><td>${s.package ? `<span class="pkg">package</span> ${esc(s.package)}` : `<code>${esc(s.localPath ?? s.source)}</code>`}</td><td class="num">${esc(formatBytes(s.bytes))}</td><td class="num">${s.unusedBytes ? esc(formatBytes(s.unusedBytes)) : '–'}</td></tr>`)
+    .join('')}</tbody></table></div>`;
+}
+
+function pageMeta(page: PageReport): string {
+  const { result, comparison } = page;
+  return `${esc(result.finalUrl)} · ${esc(result.preset)} · median of ${result.runs} run${result.runs === 1 ? '' : 's'}${page.template ? ` · ${esc(page.template)}` : ''}${comparison?.scoreDelta ? ` · <span class="delta ${comparison.scoreVerdict}">${comparison.scoreDelta > 0 ? '+' : ''}${comparison.scoreDelta} vs. baseline</span>` : ''}`;
+}
+
+function pageSection(page: PageReport, index: number): string {
+  const { result, comparison } = page;
+  const findings = result.diagnostics.findings.slice(0, 8).map(findingHtml).join('');
+  const violations = violationsHtml(page);
   return `<section class="page" id="page-${index}">
 <div class="page-head">${scoreRing(result.score)}<div><h2>${esc(shortUrl(result.url))}</h2>
-<p class="meta">${esc(result.finalUrl)} · ${esc(result.preset)} · median of ${result.runs} run${result.runs === 1 ? '' : 's'}${page.template ? ` · ${esc(page.template)}` : ''}${comparison?.scoreDelta ? ` · <span class="delta ${comparison.scoreVerdict}">${comparison.scoreDelta > 0 ? '+' : ''}${comparison.scoreDelta} vs. baseline</span>` : ''}</p></div></div>
+<p class="meta">${pageMeta(page)}</p></div></div>
 ${violations ? `<ul class="violations">${violations}</ul>` : ''}
-<div class="scroll"><table class="metrics"><thead><tr><th>Metric</th><th class="num">Value</th>${comparison ? '<th class="num">Change</th>' : ''}<th>Rating</th></tr></thead><tbody>${metricRows}</tbody></table></div>
+<div class="scroll"><table class="metrics"><thead><tr><th>Metric</th><th class="num">Value</th>${comparison ? '<th class="num">Change</th>' : ''}<th>Rating</th></tr></thead><tbody>${metricRows(page)}</tbody></table></div>
 ${comparison?.lowConfidence ? '<p class="note">Compared single runs; small differences may be noise. Use --runs 3 or more.</p>' : ''}
-${field}
+${fieldHtml(page)}
 ${findings ? `<h3>Top fixes <span class="sub">ranked by estimated impact</span></h3><ol class="findings">${findings}</ol>` : '<p>No failing performance audits.</p>'}
-<div class="grid2"><div>${lcp}</div><div>${shifts}</div></div>
-${sources}
+<div class="grid2"><div>${lcpHtml(page)}</div><div>${shiftsHtml(page)}</div></div>
+${sourcesHtml(page)}
 </section>`;
 }
 

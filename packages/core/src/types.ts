@@ -68,7 +68,7 @@ export interface FindingItem {
   /** Human-readable reasons, e.g. "Unsized image element". */
   notes?: string[];
   /** Source-mapped origins of the bytes in this item. */
-  sources?: Array<{ source: string; bytes?: number; wastedBytes?: number; localPath?: string }>;
+  sources?: { source: string; bytes?: number; wastedBytes?: number; localPath?: string }[];
 }
 
 export interface Finding {
@@ -93,7 +93,7 @@ export interface LcpElement {
   snippet: string;
   label?: string;
   /** e.g. Time to first byte, Resource load delay, Element render delay. */
-  phases: Array<{ phase: string; ms: number }>;
+  phases: { phase: string; ms: number }[];
 }
 
 export interface LayoutShift {

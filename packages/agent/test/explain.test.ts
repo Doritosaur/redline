@@ -4,14 +4,14 @@ import path from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { AuditResult, RedlineReport } from '@redline/core';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { collectSources, explainReport } from '../src/explain.js';
+import { collectSources, isInside, explainReport } from '../src/explain.js';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'redline-agent-'));
 fs.mkdirSync(path.join(root, 'src'));
 fs.writeFileSync(path.join(root, 'src/main.ts'), "import _ from 'lodash';\n");
 fs.writeFileSync(path.join(root, 'src/big.ts'), 'x'.repeat(70 * 1024));
 fs.writeFileSync(path.join(root, 'secret.env'), 'TOKEN=1');
-afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
+afterAll(() => { fs.rmSync(root, { recursive: true, force: true }); });
 
 function report(): RedlineReport {
   const result: AuditResult = {
@@ -61,8 +61,49 @@ describe('collectSources', () => {
     expect(omitted).toEqual(['src/big.ts']);
   });
 
+  it('does not follow symlinks that point outside the project', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'redline-outside-'));
+    fs.writeFileSync(path.join(outside, 'secret.ts'), 'SECRET');
+    const link = path.join(root, 'src/linked.ts');
+    try {
+      fs.symlinkSync(path.join(outside, 'secret.ts'), link);
+    } catch {
+      fs.rmSync(outside, { recursive: true, force: true });
+      return; // symlinks need privileges on some Windows setups
+    }
+    try {
+      const r = report();
+      r.pages[0]!.result.diagnostics.sources.push({ localPath: 'src/linked.ts', bytes: 10, unusedBytes: 5 } as never);
+      expect(collectSources(r, root, 200 * 1024).included.map((f) => f.path)).not.toContain('src/linked.ts');
+    } finally {
+      fs.rmSync(link, { force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('lists every referenced file as omitted when the project root cannot be resolved', () => {
+    const { included, omitted } = collectSources(report(), path.join(root, 'does-not-exist'), 200 * 1024);
+    expect(included).toEqual([]);
+    expect(omitted).toContain('src/main.ts');
+  });
+
   it('returns nothing without a project root', () => {
     expect(collectSources(report(), undefined, 1000)).toEqual({ included: [], omitted: [] });
+  });
+});
+
+describe('isInside', () => {
+  const fsRoot = path.parse(process.cwd()).root;
+
+  it('accepts descendants, including when the root is a filesystem root', () => {
+    expect(isInside(root, path.join(root, 'src', 'main.ts'))).toBe(true);
+    expect(isInside(fsRoot, path.join(fsRoot, 'etc', 'x'))).toBe(true);
+  });
+
+  it('rejects the root itself, siblings that share a prefix, and parents', () => {
+    expect(isInside(root, root)).toBe(false);
+    expect(isInside(root, `${root}-evil${path.sep}x`)).toBe(false);
+    expect(isInside(root, path.dirname(root))).toBe(false);
   });
 });
 

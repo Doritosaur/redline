@@ -32,7 +32,7 @@ export interface FieldDataOptions {
 const ENDPOINT = 'https://chromeuxreport.googleapis.com/v1/records:queryRecord';
 
 // CrUX metric keys; TTFB has been published under both names.
-const FIELD_METRICS: Array<{ id: FieldMetricId; label: string; keys: string[]; thresholds: [number, number] }> = [
+const FIELD_METRICS: { id: FieldMetricId; label: string; keys: string[]; thresholds: [number, number] }[] = [
   { id: 'lcp', label: 'Largest Contentful Paint', keys: ['largest_contentful_paint'], thresholds: [2500, 4000] },
   { id: 'inp', label: 'Interaction to Next Paint', keys: ['interaction_to_next_paint'], thresholds: [200, 500] },
   { id: 'cls', label: 'Cumulative Layout Shift', keys: ['cumulative_layout_shift'], thresholds: [0.1, 0.25] },
@@ -69,7 +69,7 @@ export async function fetchFieldData(url: string, options: FieldDataOptions): Pr
 }
 
 interface CruxMetric {
-  histogram?: Array<{ start: number | string; end?: number | string; density?: number }>;
+  histogram?: { start: number | string; end?: number | string; density?: number }[];
   percentiles?: { p75?: number | string };
 }
 interface CruxDate {

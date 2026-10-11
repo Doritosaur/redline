@@ -107,7 +107,7 @@ async function launch(type: BrowserType, name: BrowserName): Promise<Browser> {
         }
       }
     }
-    throw new Error(`${name} is not installed. Run: npx playwright install ${name}`);
+    throw new Error(`${name} is not installed. Run: npx playwright install ${name}`, { cause: err });
   }
 }
 
@@ -161,7 +161,7 @@ function emptyMetrics(): BrowserMetrics {
 
 function medianMetrics(samples: BrowserMetrics[]): BrowserMetrics {
   const out = emptyMetrics();
-  for (const key of Object.keys(out) as Array<keyof BrowserMetrics>) {
+  for (const key of Object.keys(out) as (keyof BrowserMetrics)[]) {
     const values = samples.map((s) => s[key]).filter((v): v is number => v !== null);
     out[key] = values.length ? median(values) : null;
   }

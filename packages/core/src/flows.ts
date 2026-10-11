@@ -23,7 +23,7 @@ export interface FlowResult {
     cls: number | null;
     tbt: number | null;
     /** Where the slowest interaction spent its time: input delay, processing, presentation. */
-    inpBreakdown: Array<{ phase: string; ms: number }>;
+    inpBreakdown: { phase: string; ms: number }[];
     /** Element the slowest interaction targeted. */
     inpTarget?: string;
     findings: Finding[];
@@ -127,10 +127,10 @@ function summarizeTimespan(lhr: Result): FlowResult['interactions'] {
   };
 }
 
-function inpBreakdown(lhr: Result): { phases: Array<{ phase: string; ms: number }>; target?: string } {
+function inpBreakdown(lhr: Result): { phases: { phase: string; ms: number }[]; target?: string } {
   const details = lhr.audits['inp-breakdown-insight']?.details as unknown;
   const lists = isRecord(details) && Array.isArray(details.items) ? details.items.filter(isRecord) : [];
-  const phases: Array<{ phase: string; ms: number }> = [];
+  const phases: { phase: string; ms: number }[] = [];
   let target: string | undefined;
   for (const entry of lists) {
     if (entry.type === 'node' && typeof entry.selector === 'string') target = entry.selector;

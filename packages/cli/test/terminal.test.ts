@@ -15,7 +15,7 @@ const result = (lcp: number, score: number, fetchedAt: string): AuditResult => (
   lighthouseVersion: '13.5.0',
   metrics: [
     { id: 'lcp', label: 'Largest Contentful Paint', value: lcp, unit: 'ms', rating: lcp <= 2500 ? 'good' : 'poor', samples: [lcp, lcp, lcp] },
-    { id: 'cls', label: 'Cumulative Layout Shift', value: 0.02, unit: 'score', rating: 'good', samples: [0.02, 0.02, 0.02] },
+    { id: 'cls', label: 'Cumulative Layout Shift', value: 0.02, unit: 'unitless', rating: 'good', samples: [0.02, 0.02, 0.02] },
   ],
   diagnostics: {
     findings: [{ id: 'render-blocking', title: 'Eliminate render-blocking resources', severity: 'high', savings: { lcp: 900 }, items: [] } as never],
@@ -53,7 +53,7 @@ describe('renderPage', () => {
 describe('renderCompat', () => {
   const base: CompatReport = { root: '/p', targets: ['safari 14'], targetsSource: 'browserslist config', filesScanned: 4, issues: [], skipped: [] };
 
-  it('celebrates a clean scan', () => expect(plain(renderCompat(base))).toContain('No unsupported features found'));
+  it('celebrates a clean scan', () => { expect(plain(renderCompat(base))).toContain('No unsupported features found'); });
 
   it('lists file:line:column issues, skipped files and the JS caveat', () => {
     const text = plain(

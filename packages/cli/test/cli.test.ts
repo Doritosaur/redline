@@ -29,12 +29,11 @@ describe('redline CLI', { timeout: 30_000 }, () => {
   beforeEach(() => {
     cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'redline-cli-'));
   });
-  afterEach(() => fs.rmSync(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
+  afterEach(() => { fs.rmSync(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); });
 
   const run = (args: string[], env: Record<string, string | undefined> = {}) =>
     new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-      execFile(process.execPath, [bin, ...args], { cwd, env: { ...process.env, NO_COLOR: '1', CRUX_API_KEY: undefined, ...env } }, (err, stdout, stderr) =>
-        resolve({ code: err ? ((err as { code?: number }).code ?? 1) : 0, stdout, stderr }),
+      execFile(process.execPath, [bin, ...args], { cwd, env: { ...process.env, NO_COLOR: '1', CRUX_API_KEY: undefined, ...env } }, (err, stdout, stderr) => { resolve({ code: err ? ((err as { code?: number }).code ?? 1) : 0, stdout, stderr }); },
       );
     });
 

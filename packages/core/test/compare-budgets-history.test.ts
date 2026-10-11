@@ -55,10 +55,14 @@ describe('history', () => {
     dirs.push(d);
     return d;
   };
-  afterEach(() => dirs.splice(0).forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
+  afterEach(() => { dirs.splice(0).forEach((d) => { fs.rmSync(d, { recursive: true, force: true }); }); });
 
   it('keys runs by page and preset', () => {
-    expect(historyKey('http://localhost:3000/products/1?x=1', 'mobile')).toBe('localhost_3000_products_1__mobile');
+    expect(historyKey('http://localhost:3000/products/1', 'mobile')).toBe('localhost_3000_products_1__mobile');
+    const a = historyKey('http://localhost:3000/products/1?x=1', 'mobile');
+    expect(a).toMatch(/^localhost_3000_products_1_q[0-9a-f]{8}__mobile$/);
+    expect(a).not.toBe(historyKey('http://localhost:3000/products/1?x=2', 'mobile'));
+    expect(historyKey('http://localhost:3000/products/1?a=1&b=2', 'mobile')).toBe(historyKey('http://localhost:3000/products/1?b=2&a=1', 'mobile'));
     expect(historyKey('https://example.com/', 'desktop')).toBe('example.com__desktop');
   });
 

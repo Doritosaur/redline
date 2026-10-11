@@ -10,7 +10,7 @@ import { groupByTemplate, parseSitemapLocs, resolvePages, urlTemplate } from '..
 
 describe('loadConfig', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'redline-config-'));
-  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+  afterAll(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
   it('returns undefined when there is no config', async () => {
     expect(await loadConfig(dir)).toBeUndefined();
@@ -35,7 +35,7 @@ describe('loadConfig', () => {
     fs.writeFileSync(path.join(sub, 'redline.config.json'), JSON.stringify({ budgets: { lpc: 2500 }, runs: 0 }));
     const error = await loadConfig(sub).then(
       () => undefined,
-      (err: Error) => err.message,
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
     );
     expect(error).toMatch(/budgets: Unrecognized key.*lpc/);
     expect(error).toMatch(/runs: Too small/);

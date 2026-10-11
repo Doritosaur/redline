@@ -95,47 +95,55 @@ const out = (text: string): void => {
   process.stdout.write(text.endsWith('\n') ? text : `${text}\n`);
 };
 
+type Handler = (args: string[], values: Values, loaded: LoadedConfig | undefined) => number | Promise<number>;
+
+const HANDLERS: Record<Command, Handler> = {
+  audit: cmdAudit,
+  compare: (args) => cmdCompare(args),
+  browsers: cmdBrowsers,
+  compat: cmdCompat,
+  flow: cmdFlow,
+  field: cmdField,
+  explain: cmdExplain,
+  ci: (_args, values, loaded) => cmdCi(values, loaded),
+  init: () => cmdInit(),
+};
+
+function parseCommand(positionals: string[]): { command: Command; args: string[] } {
+  const first = positionals[0];
+  const command: Command = COMMANDS.includes(first as Command) ? (first as Command) : 'audit';
+  return { command, args: command === first ? positionals.slice(1) : positionals };
+}
+
 async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
   if (values.help) return out(HELP), EXIT.ok;
   if (values.version) return out(version), EXIT.ok;
 
-  const first = positionals[0];
-  const command: Command = COMMANDS.includes(first as Command) ? (first as Command) : 'audit';
-  const args = command === first ? positionals.slice(1) : positionals;
+  const { command, args } = parseCommand(positionals);
   const loaded = command === 'init' ? undefined : await loadConfig(process.cwd(), values.config);
   if (loaded) log(`Using ${path.relative(process.cwd(), loaded.file) || loaded.file}`);
+  return HANDLERS[command](args, values, loaded);
+}
 
-  switch (command) {
-    case 'audit':
-      return cmdAudit(args, values, loaded);
-    case 'compare':
-      return cmdCompare(args);
-    case 'browsers':
-      return cmdBrowsers(args, values, loaded);
-    case 'compat':
-      return cmdCompat(args, values, loaded);
-    case 'flow':
-      return cmdFlow(args, values, loaded);
-    case 'field':
-      return cmdField(args, values, loaded);
-    case 'explain':
-      return cmdExplain(args, values, loaded);
-    case 'ci':
-      return cmdCi(values, loaded);
-    case 'init':
-      return cmdInit();
-  }
+function parseRuns(values: Values, loaded: LoadedConfig | undefined): number {
+  const runs = Number(values.runs ?? loaded?.config.runs ?? 1);
+  if (!Number.isInteger(runs) || runs < 1) throw new UsageError(`--runs must be a positive integer, got "${values.runs}".`);
+  return runs;
+}
+
+function parsePreset(values: Values, loaded: LoadedConfig | undefined): Preset {
+  const preset = values.preset ?? loaded?.config.preset ?? 'mobile';
+  if (preset !== 'mobile' && preset !== 'desktop') throw new UsageError(`--preset must be "mobile" or "desktop", got "${preset}".`);
+  return preset as Preset;
 }
 
 function settings(values: Values, loaded: LoadedConfig | undefined) {
-  const runs = Number(values.runs ?? loaded?.config.runs ?? 1);
-  if (!Number.isInteger(runs) || runs < 1) throw new UsageError(`--runs must be a positive integer, got "${values.runs}".`);
-  const preset = values.preset ?? loaded?.config.preset ?? 'mobile';
-  if (preset !== 'mobile' && preset !== 'desktop') throw new UsageError(`--preset must be "mobile" or "desktop", got "${preset}".`);
+  const runs = parseRuns(values, loaded);
+  const preset = parsePreset(values, loaded);
   return {
     runs,
-    preset: preset as Preset,
+    preset,
     projectRoot: path.resolve(values.root ?? loaded?.projectRoot ?? process.cwd()),
     historyDir: loaded?.historyDir ?? path.resolve('.redline'),
   };
@@ -150,11 +158,37 @@ async function pageUrls(args: string[], loaded: LoadedConfig | undefined): Promi
   throw new UsageError('Missing <url>. Pass a URL, or add baseUrl/pages to redline.config.');
 }
 
+function requireCruxKey(values: Values): string | undefined {
+  const cruxApiKey = values.field ? process.env.CRUX_API_KEY : undefined;
+  if (values.field && !cruxApiKey) throw new UsageError('--field needs a Chrome UX Report API key in the CRUX_API_KEY environment variable.');
+  return cruxApiKey;
+}
+
+async function addExtras(report: RedlineReport, urls: string[], values: Values, loaded: LoadedConfig | undefined): Promise<void> {
+  const { runs, projectRoot } = settings(values, loaded);
+  if (values.browsers) {
+    log(`Measuring ${urls[0]} in ${(loaded?.config.browsers ?? ['chromium', 'firefox', 'webkit']).join(', ')}...`);
+    report.browsers = { url: urls[0]!, runs: await measureAcrossBrowsers(urls[0]!, { browsers: loaded?.config.browsers, runs }) };
+  }
+  if (values.compat) {
+    log(`Checking compatibility in ${projectRoot}...`);
+    report.compat = await checkCompat(projectRoot);
+  }
+}
+
+async function runConfigFlows(loaded: LoadedConfig, preset: Preset): Promise<NonNullable<RedlineReport['flows']>> {
+  const results: NonNullable<RedlineReport['flows']> = [];
+  for (const flow of loaded.config.flows ?? []) {
+    log(`Running flow "${flow.name}"...`);
+    results.push(await runFlow(flow, { baseUrl: loaded.config.baseUrl, preset }));
+  }
+  return results;
+}
+
 async function buildReport(args: string[], values: Values, loaded: LoadedConfig | undefined, ci = false): Promise<RedlineReport> {
   const s = settings(values, loaded);
   const urls = ci ? await pageUrls([], loaded) : await pageUrls(args, loaded);
-  const cruxApiKey = values.field ? process.env.CRUX_API_KEY : undefined;
-  if (values.field && !cruxApiKey) throw new UsageError('--field needs a Chrome UX Report API key in the CRUX_API_KEY environment variable.');
+  const cruxApiKey = requireCruxKey(values);
 
   const report: RedlineReport = {
     generatedAt: new Date().toISOString(),
@@ -168,28 +202,15 @@ async function buildReport(args: string[], values: Values, loaded: LoadedConfig 
       log,
     }),
   };
-  if (values.browsers) {
-    log(`Measuring ${urls[0]} in ${(loaded?.config.browsers ?? ['chromium', 'firefox', 'webkit']).join(', ')}...`);
-    report.browsers = { url: urls[0]!, runs: await measureAcrossBrowsers(urls[0]!, { browsers: loaded?.config.browsers, runs: s.runs }) };
-  }
-  if (values.compat) {
-    log(`Checking compatibility in ${s.projectRoot}...`);
-    report.compat = await checkCompat(s.projectRoot);
-  }
-  if (ci && loaded?.config.flows?.length) {
-    report.flows = [];
-    for (const flow of loaded.config.flows) {
-      log(`Running flow "${flow.name}"...`);
-      report.flows.push(await runFlow(flow, { baseUrl: loaded.config.baseUrl, preset: s.preset }));
-    }
-  }
+  await addExtras(report, urls, values, loaded);
+  if (ci && loaded?.config.flows?.length) report.flows = await runConfigFlows(loaded, s.preset);
   return report;
 }
 
 function emit(report: RedlineReport, values: Values): void {
   if (values.md) writeOutput(values.md, renderMarkdown(report));
   if (values.html) writeOutput(values.html, renderHtml(report));
-  if (values.json) return out(JSON.stringify(report, null, 2));
+  if (values.json) { out(JSON.stringify(report, null, 2)); return; }
 
   for (const page of report.pages) out(renderPage(page));
   if (report.flows) for (const f of report.flows) out(renderFlow(f));
@@ -223,7 +244,7 @@ async function cmdCi(values: Values, loaded: LoadedConfig | undefined): Promise<
   return failed ? EXIT.failed : EXIT.ok;
 }
 
-async function cmdCompare(args: string[]): Promise<number> {
+function cmdCompare(args: string[]): number {
   const [a, b] = args;
   if (!a || !b) throw new UsageError('Usage: redline compare <before.json> <after.json>');
   const before = readResult(a);

@@ -11,7 +11,7 @@ describe('normalizeUrl', () => {
     ['example.com/a?b=1', 'http://example.com/a?b=1'],
     ['https://example.com', 'https://example.com'],
     ['HTTP://example.com', 'HTTP://example.com'],
-  ])('%s -> %s', (input, expected) => expect(normalizeUrl(input)).toBe(expected));
+  ])('%s -> %s', (input, expected) => { expect(normalizeUrl(input)).toBe(expected); });
 });
 
 describe('baselines and output files', () => {
@@ -19,7 +19,7 @@ describe('baselines and output files', () => {
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'redline-run-'));
   });
-  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
   const result = { url: 'http://localhost:3000/', finalUrl: 'http://localhost:3000/', fetchedAt: '2026-10-01T10:00:00.000Z', preset: 'mobile', runs: 1, score: 90, lighthouseVersion: '13.5.0', metrics: [], diagnostics: { findings: [], layoutShifts: [], longTasks: [], sources: [] } } as AuditResult;
 

@@ -16,7 +16,7 @@ describe('checkCompat', () => {
     fs.mkdirSync(path.join(dir, 'node_modules', 'dep'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'node_modules', 'dep', 'index.js'), "fetch('/ignored');\n");
   });
-  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+  afterAll(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
   it('flags JS and CSS the targets cannot run, with locations, and skips node_modules', { timeout: 60_000 }, async () => {
     const report = await checkCompat(dir, { browsers: ['ie 11'] });
@@ -56,7 +56,7 @@ describe.skipIf(!hasChrome)('runFlow in Chrome', () => {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
-  afterAll(() => server?.close());
+  afterAll(() => { server.close(); });
 
   it('measures a slow click as a poor INP, dominated by processing time', { timeout: 120_000 }, async () => {
     const flow = await runFlow(

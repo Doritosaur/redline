@@ -40,7 +40,6 @@ const IMPACT_WEIGHTS: Record<keyof Omit<MetricSavings, 'bytes'>, { weight: numbe
 const BYTES_PER_IMPACT_POINT = 100 * 1024;
 
 type Audit = Result['audits'][string];
-type Details = NonNullable<Audit['details']>;
 type AnyRecord = Record<string, unknown>;
 
 /** Extract ranked findings and supporting diagnostics from one Lighthouse report. */
@@ -51,7 +50,8 @@ export function extractDiagnostics(lhr: Result): Diagnostics {
   for (const ref of refs) {
     if (ref.group !== 'insights' && ref.group !== 'diagnostics') continue;
     const audit = lhr.audits[ref.id];
-    if (!audit || audit.score === null || audit.score >= 0.9) continue;
+    if (!audit) continue;
+    if (audit.score === null || audit.score >= 0.9) continue;
     const finding = toFinding(audit);
     // Dev servers rarely set cache or compression headers; keep the finding visible but rank it last.
     if (local && DEV_SERVER_ARTIFACTS.has(finding.id)) finding.devServerArtifact = true;
@@ -86,7 +86,7 @@ function toFinding(audit: Audit): Finding {
   if (ms.TBT) savings.tbt = ms.TBT;
   if (ms.CLS) savings.cls = ms.CLS;
   if (ms.INP) savings.inp = ms.INP;
-  const details = audit.details as (Details & { overallSavingsBytes?: number; debugData?: { wastedBytes?: number } }) | undefined;
+  const details = audit.details as { overallSavingsBytes?: number; debugData?: { wastedBytes?: number } } | undefined;
   const bytes = details?.overallSavingsBytes ?? details?.debugData?.wastedBytes;
   if (bytes) savings.bytes = bytes;
 
@@ -112,28 +112,35 @@ function tableItems(details: unknown): AnyRecord[] {
 
 function toFindingItem(row: AnyRecord): FindingItem {
   const item: FindingItem = {};
-  const node = isRecord(row.node) && row.node.type === 'node' ? row.node : undefined;
   if (typeof row.url === 'string') item.url = row.url;
-  if (node) {
-    if (typeof node.selector === 'string') item.selector = node.selector;
-    if (typeof node.snippet === 'string') item.snippet = node.snippet;
-  }
+  applyNodeFields(item, row);
   for (const key of ['totalBytes', 'wastedBytes', 'wastedMs', 'duration'] as const) {
     if (typeof row[key] === 'number') item[key] = row[key];
   }
   const sub = isRecord(row.subItems) && Array.isArray(row.subItems.items) ? row.subItems.items.filter(isRecord) : [];
   const notes = sub.map((s) => s.reason ?? s.cause).filter((v): v is string => typeof v === 'string');
   if (notes.length) item.notes = notes;
-  const sources = sub
+  const sources = subItemSources(sub);
+  if (sources.length) item.sources = sources;
+  if (!item.url && !item.selector && typeof row.label === 'string') item.label = row.label;
+  return item;
+}
+
+function applyNodeFields(item: FindingItem, row: AnyRecord): void {
+  const node = isRecord(row.node) && row.node.type === 'node' ? row.node : undefined;
+  if (!node) return;
+  if (typeof node.selector === 'string') item.selector = node.selector;
+  if (typeof node.snippet === 'string') item.snippet = node.snippet;
+}
+
+function subItemSources(sub: readonly AnyRecord[]): NonNullable<FindingItem['sources']> {
+  return sub
     .filter((s) => typeof s.source === 'string')
     .map((s) => ({
       source: s.source as string,
       ...(typeof s.sourceBytes === 'number' ? { bytes: s.sourceBytes } : {}),
       ...(typeof s.sourceWastedBytes === 'number' ? { wastedBytes: s.sourceWastedBytes } : {}),
     }));
-  if (sources.length) item.sources = sources;
-  if (!item.url && !item.selector && typeof row.label === 'string') item.label = row.label;
-  return item;
 }
 
 function extractLcpElement(lhr: Result): LcpElement | undefined {
@@ -145,8 +152,8 @@ function extractLcpElement(lhr: Result): LcpElement | undefined {
     .filter((r) => typeof r.label === 'string' && typeof r.duration === 'number')
     .map((r) => ({ phase: r.label as string, ms: r.duration as number }));
   return {
-    selector: String(node.selector ?? ''),
-    snippet: String(node.snippet ?? ''),
+    selector: str(node.selector),
+    snippet: str(node.snippet),
     ...(typeof node.nodeLabel === 'string' ? { label: node.nodeLabel } : {}),
     phases,
   };
@@ -159,12 +166,12 @@ function extractLayoutShifts(lhr: Result): LayoutShift[] {
       const node = r.node as AnyRecord;
       const sub = isRecord(r.subItems) && Array.isArray(r.subItems.items) ? r.subItems.items.filter(isRecord) : [];
       return {
-        selector: String(node.selector ?? ''),
-        snippet: String(node.snippet ?? ''),
+        selector: str(node.selector),
+        snippet: str(node.snippet),
         score: r.score as number,
         causes: sub.map((s) => {
           const extra = isRecord(s.extra) && typeof s.extra.selector === 'string' ? ` (${s.extra.selector})` : '';
-          return `${String(s.cause ?? 'Unknown cause')}${extra}`;
+          return `${str(s.cause, 'Unknown cause')}${extra}`;
         }),
       };
     });
@@ -195,7 +202,7 @@ function extractSourceAttribution(lhr: Result): SourceAttribution[] {
     const walk = (node: AnyRecord, prefix: string) => {
       const name = prefix ? `${prefix}/${String(node.name)}` : String(node.name);
       const kids = Array.isArray(node.children) ? node.children.filter(isRecord) : [];
-      if (kids.length > 0) return kids.forEach((k) => walk(k, name));
+      if (kids.length > 0) { kids.forEach((k) => { walk(k, name); }); return; }
       if (name === '(unmapped)') return;
       const pkg = packageName(name);
       out.push({
@@ -206,7 +213,7 @@ function extractSourceAttribution(lhr: Result): SourceAttribution[] {
         unusedBytes: Number(node.unusedBytes ?? 0),
       });
     };
-    children.forEach((c) => walk(c, ''));
+    children.forEach((c) => { walk(c, ''); });
   }
   return out.sort((a, b) => b.bytes - a.bytes);
 }
@@ -270,4 +277,11 @@ export function resolveLocalPath(source: string, projectRoot: string): string | 
 
 function isRecord(value: unknown): value is AnyRecord {
   return typeof value === 'object' && value !== null;
+}
+
+/** Lighthouse detail fields are loosely typed: keep primitives readable, never emit "[object Object]". */
+function str(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  return fallback;
 }

@@ -17,23 +17,22 @@ export async function audit(url: string, options: AuditOptions = {}): Promise<Au
   options.signal?.throwIfAborted();
   if (!options.skipReachabilityCheck) await assertReachable(url);
 
+  const reports = await collectReports(url, runs, preset, options);
+  const result = summarize(url, preset, reports);
+  if (options.projectRoot) mapSourcesToProject(result.diagnostics, options.projectRoot);
+  return result;
+}
+
+/** Launch one Chrome and run Lighthouse `runs` times against it, always killing Chrome afterwards. */
+async function collectReports(url: string, runs: number, preset: AuditResult['preset'], options: AuditOptions): Promise<Result[]> {
   const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-first-run', ...chromeFlagsFromEnv(), ...(options.chromeFlags ?? [])] });
   const reports: Result[] = [];
-  const abort = () => chrome.kill();
+  const abort = () => { chrome.kill(); };
   options.signal?.addEventListener('abort', abort, { once: true });
   try {
     for (let i = 0; i < runs; i++) {
       options.signal?.throwIfAborted();
-      const result = await lighthouse(
-        url,
-        { port: chrome.port, logLevel: 'error', onlyCategories: ['performance'] },
-        preset === 'desktop' ? desktopConfig : undefined,
-      );
-      if (!result) throw new Error(`Lighthouse returned no result for ${url}`);
-      if (result.lhr.runtimeError) {
-        throw new Error(`Lighthouse could not load ${url}: ${result.lhr.runtimeError.message}`);
-      }
-      reports.push(result.lhr);
+      reports.push(await runLighthouse(url, chrome.port, preset));
       options.onProgress?.(i + 1, runs);
     }
   } catch (err) {
@@ -44,10 +43,21 @@ export async function audit(url: string, options: AuditOptions = {}): Promise<Au
     options.signal?.removeEventListener('abort', abort);
     chrome.kill();
   }
+  return reports;
+}
 
-  const result = summarize(url, preset, reports);
-  if (options.projectRoot) mapSourcesToProject(result.diagnostics, options.projectRoot);
-  return result;
+/** One Lighthouse performance run against an already-launched Chrome. */
+async function runLighthouse(url: string, port: number, preset: AuditResult['preset']): Promise<Result> {
+  const result = await lighthouse(
+    url,
+    { port, logLevel: 'error', onlyCategories: ['performance'] },
+    preset === 'desktop' ? desktopConfig : undefined,
+  );
+  if (!result) throw new Error(`Lighthouse returned no result for ${url}`);
+  if (result.lhr.runtimeError) {
+    throw new Error(`Lighthouse could not load ${url}: ${result.lhr.runtimeError.message}`);
+  }
+  return result.lhr;
 }
 
 export function summarize(url: string, preset: AuditResult['preset'], reports: readonly Result[]): AuditResult {
@@ -85,7 +95,7 @@ export function summarize(url: string, preset: AuditResult['preset'], reports: r
 /** The run whose LCP is closest to the median, so diagnostics describe a typical run rather than an outlier. */
 function representativeReport(reports: readonly Result[], metrics: readonly Metric[]): Result {
   const lcp = metrics.find((m) => m.id === 'lcp');
-  if (!lcp || lcp.samples.length !== reports.length) return reports[0]!;
+  if (lcp?.samples.length !== reports.length) return reports[0]!;
   let best = 0;
   lcp.samples.forEach((sample, i) => {
     if (Math.abs(sample - lcp.value) < Math.abs(lcp.samples[best]! - lcp.value)) best = i;
@@ -118,6 +128,6 @@ async function assertReachable(url: string): Promise<void> {
     const raw = err instanceof Error ? (err.cause as { code?: string; message?: string } | undefined) : undefined;
     const detail = raw?.code || raw?.message || (err instanceof Error ? err.message : '');
     const cause = detail ? ` (${detail})` : '';
-    throw new Error(`Nothing is responding at ${url}.${hint}${cause}`);
+    throw new Error(`Nothing is responding at ${url}.${hint}${cause}`, { cause: err });
   }
 }
