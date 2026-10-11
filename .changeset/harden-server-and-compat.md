@@ -13,3 +13,4 @@
 - core: fix `checkCompat` skipping every JS file when the scanned directory is outside the current working directory.
 - core: honor `REDLINE_CHROME_FLAGS` for audits and flows (e.g. `--no-sandbox` in locked-down CI).
 - mcp: split server construction from the stdio entry point so it can be tested.
+- core: silence Lighthouse's own error logging (it warned about unusable third-party source maps on every run); set `REDLINE_DEBUG=1` to restore it.

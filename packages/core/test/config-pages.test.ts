@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { chromeFlagsFromEnv } from '../src/chrome.js';
+import { chromeFlagsFromEnv, lighthouseLogLevel } from '../src/chrome.js';
 import { loadConfig } from '../src/config.js';
 import { groupByTemplate, parseSitemapLocs, resolvePages, urlTemplate } from '../src/pages.js';
 
@@ -97,5 +97,12 @@ describe('chromeFlagsFromEnv', () => {
   it('splits REDLINE_CHROME_FLAGS on whitespace and ignores blanks', () => {
     expect(chromeFlagsFromEnv({ REDLINE_CHROME_FLAGS: ' --no-sandbox   --disable-dev-shm-usage ' })).toEqual(['--no-sandbox', '--disable-dev-shm-usage']);
     expect(chromeFlagsFromEnv({})).toEqual([]);
+  });
+});
+
+describe('lighthouseLogLevel', () => {
+  it('is silent by default so third-party source-map warnings do not leak, and verbose with REDLINE_DEBUG', () => {
+    expect(lighthouseLogLevel({})).toBe('silent');
+    expect(lighthouseLogLevel({ REDLINE_DEBUG: '1' })).toBe('info');
   });
 });

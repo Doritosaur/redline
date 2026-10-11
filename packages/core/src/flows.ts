@@ -2,7 +2,7 @@ import * as chromeLauncher from 'chrome-launcher';
 import { desktopConfig, startFlow, type Result } from 'lighthouse';
 import puppeteer, { type Page } from 'puppeteer-core';
 import type { FlowConfig, FlowStep } from './config.js';
-import { chromeFlagsFromEnv } from './chrome.js';
+import { chromeFlagsFromEnv, lighthouseLogLevel } from './chrome.js';
 import { extractDiagnostics } from './diagnostics.js';
 import { summarize } from './lighthouse.js';
 import { toAbsolute } from './pages.js';
@@ -48,7 +48,7 @@ export async function runFlow(flow: FlowConfig, options: FlowOptions = {}): Prom
     const page = await browser.newPage();
     const lhFlow = await startFlow(page, {
       name: flow.name,
-      flags: { logLevel: 'error', onlyCategories: ['performance'] },
+      flags: { logLevel: lighthouseLogLevel(), onlyCategories: ['performance'] },
       ...(preset === 'desktop' ? { config: desktopConfig } : {}),
     });
 
