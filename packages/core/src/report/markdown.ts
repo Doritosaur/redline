@@ -7,6 +7,9 @@ import {
   formatSavings,
   lcpPhaseNote,
   learnMoreUrl,
+  compactUrl,
+  describeLabel,
+  isThirdPartyFinding,
   shortUrl,
   type PageReport,
   type RedlineReport,
@@ -87,9 +90,10 @@ function findingLines(f: Finding, i: number): string[] {
   const link = learnMoreUrl(f);
   const savings = formatSavings(f.savings);
   const artifact = f.devServerArtifact ? ' _(localhost: likely a dev-server artifact, verify against production)_' : '';
-  const out = [`${i + 1}. **${link ? `[${f.title}](${link})` : f.title}**${savings ? ` — saves ${savings}` : f.displayValue ? ` — ${f.displayValue}` : ''}${artifact}`];
+  const thirdParty = isThirdPartyFinding(f) ? ' _(third-party: defer or remove the tag; not your code)_' : '';
+  const out = [`${i + 1}. **${link ? `[${f.title}](${link})` : f.title}**${savings ? ` — saves ${savings}` : f.displayValue ? ` — ${f.displayValue}` : ''}${artifact}${thirdParty}`];
   for (const item of f.items.slice(0, 3)) {
-    const where = item.selector ? `\`${item.selector}\`` : item.url ? `\`${shortUrl(item.url)}\`` : item.label ?? '';
+    const where = item.selector ? `\`${item.selector}\`` : item.url ? `\`${compactUrl(item.url)}\`` : describeLabel(item.label) ?? '';
     const srcs = (item.sources ?? []).slice(0, 2).map((s) => `\`${s.localPath ?? s.source.replace(/^.*node_modules\//, '')}\`${s.wastedBytes ? ` (${formatBytes(s.wastedBytes)} unused)` : ''}`);
     const note = item.notes?.[0];
     out.push(`   - ${[where, srcs.length ? `from ${srcs.join(', ')}` : '', note ?? ''].filter(Boolean).join(' — ')}`);

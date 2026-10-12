@@ -24,6 +24,8 @@ export interface RedlineReport {
   browsers?: { url: string; runs: BrowserRun[] };
   compat?: CompatReport;
   flows?: FlowResult[];
+  /** Pages whose audit failed while others succeeded. */
+  failures?: { url: string; message: string }[];
 }
 
 export function hasFailures(report: RedlineReport, options: { failOnRegression?: boolean } = {}): boolean {
@@ -80,6 +82,25 @@ export function plainDescription(finding: Finding): string {
 
 export function learnMoreUrl(finding: Finding): string | undefined {
   return /\]\((https?:\/\/[^)]+)\)/.exec(finding.description)?.[1];
+}
+
+/** A URL for display in a line of text: path only when long, with the query string dropped and the path middle-cut to `max`. */
+export function compactUrl(url: string, max = 90): string {
+  const short = shortUrl(url);
+  if (short.length <= max) return short;
+  const noQuery = short.replace(/\?.*$/, '?…');
+  return noQuery.length <= max ? noQuery : `${noQuery.slice(0, max - 1)}…`;
+}
+
+/** Lighthouse's catch-all row is opaque on its own; say what it means. */
+export function describeLabel(label: string | undefined): string | undefined {
+  if (!label) return label;
+  return /^unattributable$/i.test(label) ? 'Unattributable (time not tied to any script URL: browser style/layout/GC work, or cross-origin iframes)' : label;
+}
+
+/** Every listed item comes from a third party, so the fix is deferring or removing a tag rather than editing your code. */
+export function isThirdPartyFinding(finding: Finding): boolean {
+  return finding.items.length > 0 && finding.items.every((i) => i.thirdParty);
 }
 
 export function shortUrl(url: string): string {

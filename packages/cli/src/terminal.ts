@@ -1,10 +1,13 @@
 import { styleText } from 'node:util';
 import {
+  compactUrl,
+  describeLabel,
   formatBytes,
   formatDelta,
   formatMetric,
   formatMs,
   formatSavings,
+  isThirdPartyFinding,
   lcpPhaseNote,
   shortUrl,
   type BrowserRun,
@@ -70,11 +73,12 @@ type FindingItem = Finding['items'][number];
 
 function itemLines(item: FindingItem): string[] {
   const lines: string[] = [];
-  const where = item.selector ?? (item.url ? shortUrl(item.url) : item.label);
+  const where = item.selector ?? (item.url ? compactUrl(item.url) : describeLabel(item.label));
   const src = item.sources?.[0];
   const unused = src?.wastedBytes ? ` (${formatBytes(src.wastedBytes)} unused)` : '';
   const from = src ? ` ← ${src.localPath ?? src.source.replace(/^.*node_modules\//, '')}${unused}` : '';
-  if (where || from) lines.push(dim(`     ${where ?? ''}${from}`));
+  const party = item.thirdParty ? ' [third-party]' : '';
+  if (where || from) lines.push(dim(`     ${truncate(where ?? '', 110)}${party}${from}`));
   if (item.notes?.[0]) lines.push(dim(`     ${truncate(item.notes[0], 110)}`));
   return lines;
 }
@@ -82,7 +86,8 @@ function itemLines(item: FindingItem): string[] {
 function findingLines(f: Finding, i: number): string[] {
   if (f.devServerArtifact) return [dim(`  ${i + 1}. ${f.title}  (likely a dev-server artifact; check production headers)`)];
   const savings = formatSavings(f.savings) || f.displayValue || '';
-  return [`  ${i + 1}. ${f.title}${savings ? `  ${styleText('red', savings)}` : ''}`, ...f.items.slice(0, 2).flatMap(itemLines)];
+  const thirdParty = isThirdPartyFinding(f) ? dim('  (third-party: defer or remove the tag)') : '';
+  return [`  ${i + 1}. ${f.title}${savings ? `  ${styleText('red', savings)}` : ''}${thirdParty}`, ...f.items.slice(0, 2).flatMap(itemLines)];
 }
 
 function lcpLines(result: Result): string[] {
@@ -98,6 +103,7 @@ export function renderPage(page: PageReport, options: { findings?: number } = {}
   const { result, comparison } = page;
   const lines = ['', ...headerLines(result, comparison), ...metricLines(result, comparison)];
   if (comparison?.lowConfidence) lines.push(dim('  Single-run comparison; differences may be noise. Use --runs 3 for reliable deltas.'));
+  else if (result.runs === 1) lines.push(dim('  Single run: TTFB, TBT and LCP can swing between runs. Use --runs 3 for reliable numbers.'));
   lines.push(...page.violations.map(violationLine));
   if (page.field) lines.push('', ...renderField(page.field));
 

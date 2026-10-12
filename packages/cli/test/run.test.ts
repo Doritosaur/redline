@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AuditResult } from '@redline/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { baselinePath, normalizeUrl, readBaseline, writeBaseline, writeOutput } from '../src/run.js';
+import { auditPages, baselinePath, looksLikeFilePath, normalizeUrl, readBaseline, writeBaseline, writeOutput } from '../src/run.js';
 
 describe('normalizeUrl', () => {
   it.each([
@@ -12,6 +12,29 @@ describe('normalizeUrl', () => {
     ['https://example.com', 'https://example.com'],
     ['HTTP://example.com', 'HTTP://example.com'],
   ])('%s -> %s', (input, expected) => { expect(normalizeUrl(input)).toBe(expected); });
+});
+
+describe('looksLikeFilePath', () => {
+  it.each(['C:/Users/a/audit.json', 'C:\tmp\r.md', './report.html', '../x', 'out.json', 'report.md'])('rejects %s', (input) => {
+    expect(looksLikeFilePath(input)).toBe(true);
+  });
+  it.each(['localhost:3000', 'https://scotchpos.com/?ref=x', 'example.com/a/b', 'http://localhost:3000/data.json']
+    .slice(0, 3))('accepts %s', (input) => { expect(looksLikeFilePath(input)).toBe(false); });
+});
+
+describe('auditPages failures', () => {
+  const options = { runs: 1, preset: 'mobile', projectRoot: '.', historyDir: '.', save: false, log: () => undefined } as const;
+
+  it('keeps going and reports failed pages through onFailure', async () => {
+    const failures: string[] = [];
+    const pages = await auditPages(['http://127.0.0.1:1/'], { ...options, onFailure: (url) => failures.push(url) });
+    expect(pages).toEqual([]);
+    expect(failures).toEqual(['http://127.0.0.1:1/']);
+  });
+
+  it('rethrows when no failure handler is given', async () => {
+    await expect(auditPages(['http://127.0.0.1:1/'], options)).rejects.toThrow();
+  });
 });
 
 describe('baselines and output files', () => {

@@ -47,12 +47,13 @@ export function extractDiagnostics(lhr: Result): Diagnostics {
   const refs = lhr.categories.performance?.auditRefs ?? [];
   const findings: Finding[] = [];
   const local = isLocalUrl(lhr.finalDisplayedUrl);
+  const thirdParty = thirdPartyOrigins(lhr);
   for (const ref of refs) {
     if (ref.group !== 'insights' && ref.group !== 'diagnostics') continue;
     const audit = lhr.audits[ref.id];
     if (!audit) continue;
     if (audit.score === null || audit.score >= 0.9) continue;
-    const finding = toFinding(audit);
+    const finding = toFinding(audit, thirdParty);
     // Dev servers rarely set cache or compression headers; keep the finding visible but rank it last.
     if (local && DEV_SERVER_ARTIFACTS.has(finding.id)) finding.devServerArtifact = true;
     findings.push(finding);
@@ -78,7 +79,20 @@ export function impactScore(savings: MetricSavings): number {
   return Math.round(score * 10) / 10;
 }
 
-function toFinding(audit: Audit): Finding {
+/** Origins Lighthouse classified as belonging to someone other than the audited page. */
+function thirdPartyOrigins(lhr: Result): Set<string> {
+  return new Set((lhr.entities ?? []).filter((e) => e.isFirstParty !== true).flatMap((e) => e.origins));
+}
+
+function originOf(url: string): string | undefined {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function toFinding(audit: Audit, thirdParty: ReadonlySet<string>): Finding {
   const savings: MetricSavings = {};
   const ms = audit.metricSavings ?? {};
   if (ms.LCP) savings.lcp = ms.LCP;
@@ -97,7 +111,7 @@ function toFinding(audit: Audit): Finding {
     ...(audit.displayValue ? { displayValue: audit.displayValue } : {}),
     savings,
     impact: impactScore(savings),
-    items: tableItems(details).slice(0, MAX_ITEMS_PER_FINDING).map(toFindingItem),
+    items: tableItems(details).slice(0, MAX_ITEMS_PER_FINDING).map((row) => toFindingItem(row, thirdParty)),
   };
 }
 
@@ -110,9 +124,13 @@ function tableItems(details: unknown): AnyRecord[] {
   return Array.isArray(details.items) ? details.items.filter(isRecord) : [];
 }
 
-function toFindingItem(row: AnyRecord): FindingItem {
+function toFindingItem(row: AnyRecord, thirdParty: ReadonlySet<string>): FindingItem {
   const item: FindingItem = {};
-  if (typeof row.url === 'string') item.url = row.url;
+  if (typeof row.url === 'string') {
+    item.url = row.url;
+    const origin = originOf(row.url);
+    if (origin && thirdParty.has(origin)) item.thirdParty = true;
+  }
   applyNodeFields(item, row);
   for (const key of ['totalBytes', 'wastedBytes', 'wastedMs', 'duration'] as const) {
     if (typeof row[key] === 'number') item[key] = row[key];

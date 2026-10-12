@@ -8,6 +8,9 @@ import {
   lcpPhaseNote,
   learnMoreUrl,
   plainDescription,
+  compactUrl,
+  describeLabel,
+  isThirdPartyFinding,
   shortUrl,
   type PageReport,
   type RedlineReport,
@@ -70,7 +73,7 @@ type Finding = PageReport['result']['diagnostics']['findings'][number];
 type FindingItem = Finding['items'][number];
 
 function findingItem(item: FindingItem): string {
-  const where = item.selector ?? (item.url ? shortUrl(item.url) : item.label ?? '');
+  const where = item.selector ?? (item.url ? compactUrl(item.url) : describeLabel(item.label) ?? '');
   const sources = (item.sources ?? [])
     .slice(0, 3)
     .map((s) => `<code>${esc(s.localPath ?? s.source.replace(/^.*node_modules\//, ''))}</code>${s.wastedBytes ? ` ${esc(formatBytes(s.wastedBytes))} unused` : ''}`)
@@ -83,7 +86,8 @@ function findingHtml(f: Finding): string {
   const items = f.items.slice(0, 4).map(findingItem).join('');
   const savings = formatSavings(f.savings);
   const artifact = f.devServerArtifact ? '<div class="note">Localhost only: dev servers usually skip these headers. Verify against production.</div>' : '';
-  return `<li class="finding${f.devServerArtifact ? ' muted-finding' : ''}"><div class="finding-head"><strong>${esc(f.title)}</strong>${savings ? `<span class="savings">${esc(savings)}</span>` : f.displayValue ? `<span class="savings">${esc(f.displayValue)}</span>` : ''}</div>${artifact}
+  const thirdParty = isThirdPartyFinding(f) ? '<div class="note">Third-party: defer or remove the tag; this is not your code.</div>' : '';
+  return `<li class="finding${f.devServerArtifact ? ' muted-finding' : ''}"><div class="finding-head"><strong>${esc(f.title)}</strong>${savings ? `<span class="savings">${esc(savings)}</span>` : f.displayValue ? `<span class="savings">${esc(f.displayValue)}</span>` : ''}</div>${artifact}${thirdParty}
 <p>${esc(plainDescription(f))}${link ? ` <a href="${esc(link)}" target="_blank" rel="noopener">Learn more</a>` : ''}</p>${items ? `<ul class="items">${items}</ul>` : ''}</li>`;
 }
 

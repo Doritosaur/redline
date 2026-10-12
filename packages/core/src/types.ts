@@ -61,6 +61,8 @@ export interface FindingItem {
   selector?: string;
   snippet?: string;
   label?: string;
+  /** The URL belongs to a different party than the audited page (analytics, ads, embeds); you can only defer or remove it. */
+  thirdParty?: boolean;
   totalBytes?: number;
   wastedBytes?: number;
   wastedMs?: number;
