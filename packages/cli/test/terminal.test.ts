@@ -50,6 +50,34 @@ describe('renderPage', () => {
   });
 });
 
+describe('renderPage third-party, long URLs and unattributable work', () => {
+  const longUrl = `https://connect.facebook.net/signals/config/1?${'ex_m=1%2C2%2C3&'.repeat(80)}`;
+  const withItems = (runs: number): PageReport => {
+    const r = result(4000, 62, '2026-10-02T10:00:00.000Z');
+    r.runs = runs;
+    r.diagnostics.findings = [
+      { id: 'cache', title: 'Use efficient cache lifetimes', savings: { bytes: 600_000 }, items: [{ url: longUrl, thirdParty: true }] } as never,
+      { id: 'bootup', title: 'Reduce JavaScript execution time', savings: { tbt: 1100 }, items: [{ url: 'https://example.com/app.js' }, { label: 'Unattributable' }] } as never,
+    ];
+    return { result: r, violations: [] };
+  };
+
+  it('marks all-third-party findings, truncates long URLs and explains Unattributable', () => {
+    const text = plain(renderPage(withItems(3)));
+    expect(text).toContain('third-party: defer or remove the tag');
+    expect(text).toContain('[third-party]');
+    expect(text).not.toContain('ex_m=1%2C2%2C3&ex_m');
+    expect(Math.max(...text.split('\n').map((l) => l.length))).toBeLessThan(160);
+    expect(text).toContain('not tied to any script URL');
+    expect(text.match(/third-party: defer/g)).toHaveLength(1);
+  });
+
+  it('warns that single runs are noisy, but not multi-run results', () => {
+    expect(plain(renderPage(withItems(1)))).toContain('Single run:');
+    expect(plain(renderPage(withItems(3)))).not.toContain('Single run:');
+  });
+});
+
 describe('renderCompat', () => {
   const base: CompatReport = { root: '/p', targets: ['safari 14'], targetsSource: 'browserslist config', filesScanned: 4, issues: [], skipped: [] };
 

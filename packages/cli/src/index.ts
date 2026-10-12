@@ -19,7 +19,7 @@ import {
   type Preset,
   type RedlineReport,
 } from '@redline/core';
-import { auditPages, normalizeUrl, writeBaseline, writeOutput } from './run.js';
+import { auditPages, looksLikeFilePath, normalizeUrl, writeBaseline, writeOutput } from './run.js';
 import { bold, dim, green, red, renderBrowsers, renderCompat, renderField, renderFlow, renderPage, yellow } from './terminal.js';
 
 const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
@@ -150,6 +150,10 @@ function settings(values: Values, loaded: LoadedConfig | undefined) {
 }
 
 async function pageUrls(args: string[], loaded: LoadedConfig | undefined): Promise<string[]> {
+  const pathLike = args.find(looksLikeFilePath);
+  if (pathLike) {
+    throw new UsageError(`"${pathLike}" looks like a file, not a URL. --json takes no value (it prints JSON to stdout); use --md <file> or --html <file> to write a report.`);
+  }
   if (args.length) return args.map(normalizeUrl);
   if (loaded) {
     const urls = await resolvePages(loaded.config);
@@ -190,9 +194,14 @@ async function buildReport(args: string[], values: Values, loaded: LoadedConfig 
   const urls = ci ? await pageUrls([], loaded) : await pageUrls(args, loaded);
   const cruxApiKey = requireCruxKey(values);
 
+  const failures: NonNullable<RedlineReport['failures']> = [];
   const report: RedlineReport = {
     generatedAt: new Date().toISOString(),
     pages: await auditPages(urls, {
+      onFailure: (url, message) => {
+        failures.push({ url, message });
+        log(`✖ ${url}: ${message}`);
+      },
       ...s,
       ...(loaded?.config.budgets ? { budgets: loaded.config.budgets } : {}),
       save: !values['no-save'],
@@ -202,6 +211,8 @@ async function buildReport(args: string[], values: Values, loaded: LoadedConfig 
       log,
     }),
   };
+  if (failures.length === urls.length) throw new Error(failures[0]!.message);
+  if (failures.length) report.failures = failures;
   await addExtras(report, urls, values, loaded);
   if (ci && loaded?.config.flows?.length) report.flows = await runConfigFlows(loaded, s.preset);
   return report;
@@ -217,6 +228,7 @@ function emit(report: RedlineReport, values: Values): void {
   if (report.browsers) out(renderBrowsers(report.browsers.url, report.browsers.runs));
   if (report.compat) out(renderCompat(report.compat));
   out('');
+  if (report.failures) for (const f of report.failures) process.stderr.write(`${red(`✖ Not audited: ${f.url}`)} ${dim(f.message)}\n`);
   if (values.md) log(`Markdown report: ${path.resolve(values.md)}`);
   if (values.html) log(`HTML report: ${path.resolve(values.html)}`);
 }
@@ -224,7 +236,8 @@ function emit(report: RedlineReport, values: Values): void {
 async function cmdAudit(args: string[], values: Values, loaded: LoadedConfig | undefined): Promise<number> {
   const report = await buildReport(args, values, loaded);
   emit(report, values);
-  return hasFailures(report) ? EXIT.failed : EXIT.ok;
+  if (hasFailures(report)) return EXIT.failed;
+  return report.failures ? EXIT.error : EXIT.ok;
 }
 
 async function cmdCi(values: Values, loaded: LoadedConfig | undefined): Promise<number> {
@@ -241,7 +254,8 @@ async function cmdCi(values: Values, loaded: LoadedConfig | undefined): Promise<
   if (missing) log(`${missing} page(s) have no baseline yet. Run \`redline ci --update-baseline\` on your main branch.`);
   const failed = hasFailures(report, { failOnRegression: loaded.config.failOnRegression ?? false });
   process.stderr.write(failed ? `${red('✖ Performance checks failed')}\n` : `${green('✔ Performance checks passed')}\n`);
-  return failed ? EXIT.failed : EXIT.ok;
+  if (failed) return EXIT.failed;
+  return report.failures ? EXIT.error : EXIT.ok;
 }
 
 function cmdCompare(args: string[]): number {
@@ -311,8 +325,11 @@ async function cmdField(args: string[], values: Values, loaded: LoadedConfig | u
 }
 
 async function cmdExplain(args: string[], values: Values, loaded: LoadedConfig | undefined): Promise<number> {
-  const { explainReport } = await import('@redline/agent');
+  const { assertCredentials, explainReport, MissingCredentialsError } = await import('@redline/agent');
   const { projectRoot } = settings(values, loaded);
+  await assertCredentials().catch((err: unknown) => {
+    throw err instanceof MissingCredentialsError ? new UsageError(err.message) : err;
+  });
   const report = await buildReport(args, values, loaded);
   for (const page of report.pages) process.stderr.write(`${renderPage(page, { findings: 3 })}\n`);
   log('\nAsking Claude for fixes...\n');
@@ -321,7 +338,7 @@ async function cmdExplain(args: string[], values: Values, loaded: LoadedConfig |
   log(`\n${result.model} · ${result.usage.inputTokens} in / ${result.usage.outputTokens} out tokens · ${result.includedFiles.length} source file(s) sent`);
   if (result.omittedFiles.length) log(`Not sent (too large): ${result.omittedFiles.join(', ')}`);
   if (values.md) writeOutput(values.md, `${result.markdown}\n`);
-  return EXIT.ok;
+  return report.failures ? EXIT.error : EXIT.ok;
 }
 
 function cmdInit(): number {

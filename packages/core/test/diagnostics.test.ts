@@ -120,3 +120,15 @@ describe('resolveLocalPath', () => {
     expect(resolveLocalPath('other/place/main.ts', demoAppRoot)).toBeUndefined();
   });
 });
+
+describe('third-party classification', () => {
+  it('flags items whose origin Lighthouse lists as a non-first-party entity', () => {
+    const urlItem = extractDiagnostics(lhr).findings.flatMap((f) => f.items).find((i) => i.url);
+    expect(urlItem?.url).toBeDefined();
+    const origin = new URL(urlItem!.url!).origin;
+    const marked = extractDiagnostics({ ...lhr, entities: [{ name: 'Tracker', origins: [origin] }] });
+    expect(marked.findings.flatMap((f) => f.items).filter((i) => i.url?.startsWith(origin)).every((i) => i.thirdParty)).toBe(true);
+    const firstParty = extractDiagnostics({ ...lhr, entities: [{ name: 'Me', isFirstParty: true, origins: [origin] }] });
+    expect(firstParty.findings.flatMap((f) => f.items).some((i) => i.thirdParty)).toBe(false);
+  });
+});

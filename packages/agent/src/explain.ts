@@ -44,6 +44,24 @@ End with a short "Verify" section: how to confirm the fixes worked, e.g. re-runn
 
 Write in GitHub-flavored Markdown. Be direct and specific; no generic performance advice that the report does not support.`;
 
+/** Anthropic credentials are missing or rejected. */
+export class MissingCredentialsError extends Error {}
+
+/**
+ * Fail fast, before a multi-minute audit, when there is nothing to authenticate with. Only auth problems throw:
+ * a network blip here is left for the real request to report.
+ */
+export async function assertCredentials(client: Anthropic = new Anthropic()): Promise<void> {
+  try {
+    await client.models.list({ limit: 1 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof Anthropic.AuthenticationError || message.includes('Could not resolve authentication')) {
+      throw new MissingCredentialsError('Anthropic credentials not found or rejected. Set ANTHROPIC_API_KEY, or run `ant auth login`.');
+    }
+  }
+}
+
 /** Ask Claude to turn a Redline report into prioritized, code-level fixes. */
 export async function explainReport(report: RedlineReport, options: ExplainOptions = {}): Promise<ExplainResult> {
   const client = options.client ?? new Anthropic();
