@@ -1,6 +1,6 @@
 {
   "name": "@redline/server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Self-hostable Redline audit service: job queue, JSON API and HTML reports",
   "type": "module",
   "main": "./dist/index.js",

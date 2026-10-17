@@ -1,6 +1,6 @@
 {
   "name": "@redline/agent",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Turns Redline reports into prioritized, code-level fixes using Claude",
   "type": "module",
   "main": "./dist/index.js",

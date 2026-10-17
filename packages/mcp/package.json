@@ -1,6 +1,6 @@
 {
   "name": "@redline/mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "MCP server that lets AI coding tools run Redline performance audits",
   "type": "module",
   "bin": {
