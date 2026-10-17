@@ -28,11 +28,11 @@ COPY packages/cli/package.json packages/cli/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/agent/package.json packages/agent/
 COPY fixtures/demo-app/package.json fixtures/demo-app/
-RUN pnpm install --frozen-lockfile --filter "@redline/server..."
+RUN pnpm install --frozen-lockfile --filter "@redline-dev/server..."
 
 COPY packages/core packages/core
 COPY packages/server packages/server
-RUN pnpm --filter "@redline/server..." build
+RUN pnpm --filter "@redline-dev/server..." build
 
 # Set only after the build: with NODE_ENV=production, pnpm install would skip TypeScript.
 ENV NODE_ENV=production

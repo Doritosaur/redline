@@ -1,5 +1,5 @@
 {
-  "name": "@redline/fixture-demo-app",
+  "name": "@redline-dev/fixture-demo-app",
   "private": true,
   "description": "Deliberately slow demo site used to test Redline end to end",
   "type": "module",

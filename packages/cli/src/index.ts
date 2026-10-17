@@ -18,7 +18,7 @@ import {
   type LoadedConfig,
   type Preset,
   type RedlineReport,
-} from '@redline/core';
+} from '@redline-dev/core';
 import { auditPages, looksLikeFilePath, normalizeUrl, writeBaseline, writeOutput } from './run.js';
 import { bold, dim, green, red, renderBrowsers, renderCompat, renderField, renderFlow, renderPage, yellow } from './terminal.js';
 
@@ -325,7 +325,7 @@ async function cmdField(args: string[], values: Values, loaded: LoadedConfig | u
 }
 
 async function cmdExplain(args: string[], values: Values, loaded: LoadedConfig | undefined): Promise<number> {
-  const { assertCredentials, explainReport, MissingCredentialsError } = await import('@redline/agent');
+  const { assertCredentials, explainReport, MissingCredentialsError } = await import('@redline-dev/agent');
   const { projectRoot } = settings(values, loaded);
   await assertCredentials().catch((err: unknown) => {
     throw err instanceof MissingCredentialsError ? new UsageError(err.message) : err;

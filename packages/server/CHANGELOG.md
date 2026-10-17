@@ -1,4 +1,4 @@
-# @redline/server
+# @redline-dev/server
 
 ## 0.1.0
 
@@ -19,4 +19,4 @@
 - Updated dependencies [6f5acce]
 - Updated dependencies [9e8cd69]
 - Updated dependencies
-  - @redline/core@0.1.0
+  - @redline-dev/core@0.1.0

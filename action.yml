@@ -28,7 +28,7 @@ inputs:
     description: Extra arguments for `redline ci`, e.g. "--compat"
     default: ''
   redline-version:
-    description: npm version of @redline/cli to run
+    description: npm version of @redline-dev/cli to run
     default: latest
   node-version:
     description: Node.js version
@@ -98,7 +98,7 @@ runs:
         if [ "$UPDATE_BASELINE" = "true" ]; then flags+=(--update-baseline); fi
         set +e
         # shellcheck disable=SC2086 # REDLINE_ARGS is intentionally word-split
-        npx --yes "@redline/cli@$REDLINE_VERSION" ci "${flags[@]}" $REDLINE_ARGS
+        npx --yes "@redline-dev/cli@$REDLINE_VERSION" ci "${flags[@]}" $REDLINE_ARGS
         code=$?
         set -e
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"

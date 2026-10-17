@@ -1,8 +1,11 @@
 {
-  "name": "@redline/mcp",
+  "name": "@redline-dev/mcp",
   "version": "0.1.0",
   "description": "MCP server that lets AI coding tools run Redline performance audits",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "redline-mcp": "./dist/index.js"
   },
@@ -19,7 +22,7 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
-    "@redline/core": "workspace:*",
+    "@redline-dev/core": "workspace:*",
     "zod": "^4.6.5"
   }
 }

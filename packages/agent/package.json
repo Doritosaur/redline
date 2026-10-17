@@ -1,8 +1,11 @@
 {
-  "name": "@redline/agent",
+  "name": "@redline-dev/agent",
   "version": "0.0.1",
   "description": "Turns Redline reports into prioritized, code-level fixes using Claude",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -22,6 +25,6 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
-    "@redline/core": "workspace:*"
+    "@redline-dev/core": "workspace:*"
   }
 }

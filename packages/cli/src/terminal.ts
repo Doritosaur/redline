@@ -16,7 +16,7 @@ import {
   type FlowResult,
   type PageReport,
   type Rating,
-} from '@redline/core';
+} from '@redline-dev/core';
 
 type Style = Parameters<typeof styleText>[0];
 const RATING_STYLE: Record<Rating, Style> = { good: 'green', 'needs-improvement': 'yellow', poor: 'red' };

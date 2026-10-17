@@ -1,8 +1,11 @@
 {
-  "name": "@redline/cli",
+  "name": "@redline-dev/cli",
   "version": "0.1.0",
   "description": "Find out what's slowing down your frontend, on localhost or a live URL",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "redline": "./dist/index.js"
   },
@@ -18,7 +21,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@redline/agent": "workspace:*",
-    "@redline/core": "workspace:*"
+    "@redline-dev/agent": "workspace:*",
+    "@redline-dev/core": "workspace:*"
   }
 }

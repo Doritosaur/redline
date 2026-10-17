@@ -15,7 +15,7 @@ import {
   type FieldData,
   type PageReport,
   type Preset,
-} from '@redline/core';
+} from '@redline-dev/core';
 
 export interface PageAuditOptions {
   runs: number;

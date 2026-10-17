@@ -1,4 +1,4 @@
-# @redline/core
+# @redline-dev/core
 
 ## 0.1.0
 

@@ -20,7 +20,7 @@ import {
   urlTemplate,
   type PageReport,
   type RedlineReport,
-} from '@redline/core';
+} from '@redline-dev/core';
 
 
 const url = z.url({ protocol: /^https?$/ }).describe('http(s) URL, e.g. http://localhost:3000/');

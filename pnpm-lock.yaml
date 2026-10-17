@@ -217,16 +217,16 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.131.0
         version: 0.131.0(zod@4.6.5)
-      '@redline/core':
+      '@redline-dev/core':
         specifier: workspace:*
         version: link:../core
 
   packages/cli:
     dependencies:
-      '@redline/agent':
+      '@redline-dev/agent':
         specifier: workspace:*
         version: link:../agent
-      '@redline/core':
+      '@redline-dev/core':
         specifier: workspace:*
         version: link:../core
 
@@ -277,7 +277,7 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.31.0
         version: 1.31.0(zod@4.6.5)
-      '@redline/core':
+      '@redline-dev/core':
         specifier: workspace:*
         version: link:../core
       zod:
@@ -286,7 +286,7 @@ importers:
 
   packages/server:
     dependencies:
-      '@redline/core':
+      '@redline-dev/core':
         specifier: workspace:*
         version: link:../core
 

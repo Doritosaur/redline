@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { saveRun, type AuditResult } from '@redline/core';
+import { saveRun, type AuditResult } from '@redline-dev/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createMcpServer } from '../src/server.js';
 

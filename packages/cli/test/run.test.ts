@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { AuditResult } from '@redline/core';
+import type { AuditResult } from '@redline-dev/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { auditPages, baselinePath, looksLikeFilePath, normalizeUrl, readBaseline, writeBaseline, writeOutput } from '../src/run.js';
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AuditResult, RedlineReport } from '@redline/core';
+import type { AuditResult, RedlineReport } from '@redline-dev/core';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { collectSources, isInside, explainReport } from '../src/explain.js';
 

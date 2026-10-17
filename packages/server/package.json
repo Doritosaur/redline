@@ -1,8 +1,11 @@
 {
-  "name": "@redline/server",
+  "name": "@redline-dev/server",
   "version": "0.1.0",
   "description": "Self-hostable Redline audit service: job queue, JSON API and HTML reports",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -27,6 +30,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@redline/core": "workspace:*"
+    "@redline-dev/core": "workspace:*"
   }
 }

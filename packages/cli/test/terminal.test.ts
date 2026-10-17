@@ -1,4 +1,4 @@
-import { compareResults, type AuditResult, type BrowserRun, type CompatReport, type FlowResult, type PageReport } from '@redline/core';
+import { compareResults, type AuditResult, type BrowserRun, type CompatReport, type FlowResult, type PageReport } from '@redline-dev/core';
 import { describe, expect, it } from 'vitest';
 import { renderBrowsers, renderCompat, renderFlow, renderPage } from '../src/terminal.js';
 

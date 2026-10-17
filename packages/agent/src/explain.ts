@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
-import { renderMarkdown, type RedlineReport } from '@redline/core';
+import { renderMarkdown, type RedlineReport } from '@redline-dev/core';
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 

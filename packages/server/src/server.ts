@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
-import { audit, renderHtml, urlTemplate, type AuditResult, type Preset } from '@redline/core';
+import { audit, renderHtml, urlTemplate, type AuditResult, type Preset } from '@redline-dev/core';
 import { TargetError, vetTarget } from './net.js';
 import { landingPage, pendingPage } from './pages.js';
 import { startVettingProxy, type VettingProxy } from './proxy.js';

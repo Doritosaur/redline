@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import http from 'node:http';
 import net from 'node:net';
-import type { AuditOptions, AuditResult } from '@redline/core';
+import type { AuditOptions, AuditResult } from '@redline-dev/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isPrivateAddress, vetTarget } from '../src/net.js';
 import { startVettingProxy } from '../src/proxy.js';

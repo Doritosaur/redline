@@ -11,8 +11,8 @@ Frontend performance audits for localhost and live URLs. Redline tells you **wha
 ## Quick start
 
 ```bash
-npx @redline/cli localhost:3000            # audit a dev server
-npx @redline/cli https://example.com --runs 3 --html report.html
+npx @redline-dev/cli localhost:3000            # audit a dev server
+npx @redline-dev/cli https://example.com --runs 3 --html report.html
 ```
 
 Requires Node 22+ and Chrome (or Chromium) installed locally. In containers or locked-down CI where Chrome's sandbox can't start, set `REDLINE_CHROME_FLAGS="--no-sandbox"` (space-separated Chrome flags; applies to audits, flows and the server).
@@ -65,14 +65,14 @@ Run data lives in `.redline/`: `history/` (every run; add it to `.gitignore`) an
 ## Use from an AI editor (MCP)
 
 ```bash
-claude mcp add redline -- npx -y @redline/mcp
+claude mcp add redline -- npx -y @redline-dev/mcp
 ```
 
 Tools: `audit_url`, `audit_project`, `compare_runs`, `cross_browser`, `check_compat`, `run_flow`, `field_data`. Pass `projectRoot` so findings map to your files. Then ask: *"Audit localhost:3000 with redline, fix the top issue, and verify it improved."* For `field_data`, set `CRUX_API_KEY` in the server's environment.
 
 ## CI (GitHub Actions)
 
-See [`examples/github-workflow.yml`](examples/github-workflow.yml). The action runs `@redline/cli@latest` by default; set `redline-version` to a fixed version for reproducible builds. The action starts your app, runs `redline ci`, posts a single PR comment that updates on each push, writes a job summary, uploads the HTML report, and fails the check on budget violations. Pushes to `main` save the baseline to the Actions cache, and PRs compare against it.
+See [`examples/github-workflow.yml`](examples/github-workflow.yml). The action runs `@redline-dev/cli@latest` by default; set `redline-version` to a fixed version for reproducible builds. The action starts your app, runs `redline ci`, posts a single PR comment that updates on each push, writes a job summary, uploads the HTML report, and fails the check on budget violations. Pushes to `main` save the baseline to the Actions cache, and PRs compare against it.
 
 ## AI explanations
 
@@ -80,7 +80,7 @@ See [`examples/github-workflow.yml`](examples/github-workflow.yml). The action r
 
 ## Hosting
 
-`@redline/server` is a self-hostable audit service: a JSON API (`POST /api/audits`, `GET /api/audits/:id`), report pages and a minimal web UI. It runs one audit at a time, because concurrent Chrome runs skew each other's metrics.
+`@redline-dev/server` is a self-hostable audit service: a JSON API (`POST /api/audits`, `GET /api/audits/:id`), report pages and a minimal web UI. It runs one audit at a time, because concurrent Chrome runs skew each other's metrics.
 
 ```bash
 docker build -t redline . && docker run --rm -p 8080:8080 --shm-size=1g redline
@@ -117,10 +117,10 @@ pnpm typecheck    # builds, then type-checks packages and tests
 
 | Package | |
 |---|---|
-| `@redline/core` | Audit engine, diagnostics, comparison, budgets, config, multi-page, browsers, compat, flows, CrUX, reports |
-| `@redline/cli` | `redline` command |
-| `@redline/mcp` | MCP server |
-| `@redline/agent` | Claude-powered explanations |
-| `@redline/server` | Hosted audit service |
+| `@redline-dev/core` | Audit engine, diagnostics, comparison, budgets, config, multi-page, browsers, compat, flows, CrUX, reports |
+| `@redline-dev/cli` | `redline` command |
+| `@redline-dev/mcp` | MCP server |
+| `@redline-dev/agent` | Claude-powered explanations |
+| `@redline-dev/server` | Hosted audit service |
 
 Notes: builds use plain `tsc` (TypeScript 7 removed the compiler API that tsup's declaration bundling needs), and pnpm blocks dependency install scripts except those listed under `allowBuilds` in `pnpm-workspace.yaml`.

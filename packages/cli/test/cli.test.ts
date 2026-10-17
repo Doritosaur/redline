@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AuditResult } from '@redline/core';
+import type { AuditResult } from '@redline-dev/core';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const bin = fileURLToPath(new URL('../dist/index.js', import.meta.url));
