@@ -123,4 +123,6 @@ pnpm typecheck    # builds, then type-checks packages and tests
 | `@redline-dev/agent` | Claude-powered explanations |
 | `@redline-dev/server` | Hosted audit service |
 
+The npm packages are published under the `@redline-dev` scope; for example, install the CLI with `npx @redline-dev/cli`.
+
 Notes: builds use plain `tsc` (TypeScript 7 removed the compiler API that tsup's declaration bundling needs), and pnpm blocks dependency install scripts except those listed under `allowBuilds` in `pnpm-workspace.yaml`.
