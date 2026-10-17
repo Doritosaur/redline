@@ -82,4 +82,33 @@ describe('history', () => {
     fs.writeFileSync(file, '{"hello": 1}');
     expect(() => readResult(file)).toThrow(/not a Redline audit result/);
   });
+
+  it('reads UTF-8 with BOM and UTF-16 files (Windows PowerShell redirects)', () => {
+    const dir = tmp();
+    const json = JSON.stringify(fakeResult({ lcp: 1234 }));
+    const bom8 = path.join(dir, 'utf8-bom.json');
+    const le = path.join(dir, 'utf16le.json');
+    const be = path.join(dir, 'utf16be.json');
+    fs.writeFileSync(bom8, String.fromCharCode(0xfeff) + json);
+    fs.writeFileSync(le, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(json, 'utf16le')]));
+    fs.writeFileSync(be, Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(json, 'utf16le').swap16()]));
+    for (const file of [bom8, le, be]) expect(readResult(file).metrics[0]?.value).toBe(1234);
+  });
+
+  it('accepts a single-page `--json` report and rejects multi-page ones', () => {
+    const dir = tmp();
+    const one = path.join(dir, 'one.json');
+    const two = path.join(dir, 'two.json');
+    const result = fakeResult({ lcp: 777 });
+    fs.writeFileSync(one, JSON.stringify({ generatedAt: 'x', pages: [{ result }] }));
+    fs.writeFileSync(two, JSON.stringify({ generatedAt: 'x', pages: [{ result }, { result }] }));
+    expect(readResult(one).metrics[0]?.value).toBe(777);
+    expect(() => readResult(two)).toThrow(/report with 2 pages/);
+  });
+
+  it('explains files that are not JSON', () => {
+    const file = path.join(tmp(), 'bad.json');
+    fs.writeFileSync(file, 'not json');
+    expect(() => readResult(file)).toThrow(/bad\.json is not valid JSON/);
+  });
 });

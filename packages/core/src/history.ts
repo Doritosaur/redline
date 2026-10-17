@@ -44,8 +44,33 @@ export function listRuns(url: string, preset: Preset, dir = DEFAULT_HISTORY_DIR)
     .map((f) => readResult(path.join(folder, f)));
 }
 
+/**
+ * Decode a text file that may be UTF-8 (with or without BOM) or UTF-16. Windows PowerShell 5.1
+ * writes UTF-16 LE when output is redirected with `>`, which would otherwise fail JSON.parse.
+ */
+function readText(file: string): string {
+  const buf = fs.readFileSync(file);
+  if (buf[0] === 0xff && buf[1] === 0xfe) return buf.subarray(2).toString('utf16le');
+  if (buf[0] === 0xfe && buf[1] === 0xff) return Buffer.from(buf.subarray(2)).swap16().toString('utf16le');
+  const text = buf.toString('utf8');
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 export function readResult(file: string): AuditResult {
-  const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<AuditResult>;
+  let parsed: Partial<AuditResult> & { pages?: { result?: AuditResult }[] };
+  try {
+    parsed = JSON.parse(readText(file)) as typeof parsed;
+  } catch (error) {
+    throw new Error(`${file} is not valid JSON (${error instanceof Error ? error.message : String(error)})`, { cause: error });
+  }
+  // `redline --json` prints a report ({ pages: [{ result }] }); accept it when it holds one page.
+  if (Array.isArray(parsed.pages)) {
+    const [only, ...rest] = parsed.pages;
+    if (!only?.result || rest.length > 0) {
+      throw new Error(`${file} is a report with ${parsed.pages.length} pages; use a single-page report or a saved result from .redline/history`);
+    }
+    parsed = only.result;
+  }
   if (typeof parsed.url !== 'string' || !Array.isArray(parsed.metrics)) {
     throw new Error(`${file} is not a Redline audit result`);
   }
